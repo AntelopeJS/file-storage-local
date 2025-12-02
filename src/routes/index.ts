@@ -1,6 +1,6 @@
 import { Controller, Put, Get, Parameter, Context, RawBody, HTTPResult, RequestContext } from '@ajs/api/beta';
-import { createReadStream, promises as fs } from 'fs';
-import { getTokenManager, getConfig } from '../index';
+import { promises as fs } from 'fs';
+import { getTokenManager } from '../index';
 
 /**
  * File Storage HTTP Controller
@@ -25,7 +25,7 @@ export class FileStorageController extends Controller('file-storage') {
     @Parameter('content-type', 'header') contentType: string | undefined,
     @Parameter('content-length', 'header') contentLength: string | undefined,
     @RawBody() body: Buffer,
-    @Context() context: RequestContext,
+    @Context() _context: RequestContext,
   ): Promise<HTTPResult> {
     const tokenManager = getTokenManager();
 
@@ -167,8 +167,14 @@ export class FileStorageController extends Controller('file-storage') {
 
       const result = new HTTPResult(200, fileBuffer, metadata.mimetype);
       result.addHeader('Content-Length', metadata.size.toString());
-      result.addHeader('Content-Disposition', `inline; filename="${metadata.metadata?.['original-filename'] || decodedResourceKey}"`);
-      result.addHeader('Cache-Control', metadata.visibility === 'public' ? 'public, max-age=31536000' : 'private, no-cache');
+      result.addHeader(
+        'Content-Disposition',
+        `inline; filename="${metadata.metadata?.['original-filename'] || decodedResourceKey}"`,
+      );
+      result.addHeader(
+        'Cache-Control',
+        metadata.visibility === 'public' ? 'public, max-age=31536000' : 'private, no-cache',
+      );
 
       return result;
     } catch (error) {

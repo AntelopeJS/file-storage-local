@@ -84,10 +84,7 @@ export async function construct(config: Partial<Config> & Pick<Config, 'storageP
   await tokenManager.initialize();
 
   // Register the interface implementation
-  await ImplementInterface(
-    import('@ajs.local/file-storage/beta'),
-    import('./implementations/file-storage/beta'),
-  );
+  ImplementInterface(await import('@ajs.local/file-storage/beta'), await import('./implementations/file-storage/beta'));
 }
 
 /**
@@ -97,17 +94,10 @@ export async function construct(config: Partial<Config> & Pick<Config, 'storageP
 export function start(): void {
   // Start cleanup interval for expired tokens
   if (moduleConfig.cleanupInterval > 0) {
-    cleanupIntervalId = setInterval(async () => {
-      try {
-        const result = await tokenManager.cleanupExpiredTokens();
-        if (result.uploadTokens > 0 || result.readTokens > 0) {
-          console.log(
-            `[file-storage-local] Cleaned up ${result.uploadTokens} upload tokens and ${result.readTokens} read tokens`,
-          );
-        }
-      } catch (error) {
+    cleanupIntervalId = setInterval(() => {
+      void tokenManager.cleanupExpiredTokens().catch((error: unknown) => {
         console.error('[file-storage-local] Token cleanup error:', error);
-      }
+      });
     }, moduleConfig.cleanupInterval * 1000);
   }
 }
