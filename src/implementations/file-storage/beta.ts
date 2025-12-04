@@ -76,7 +76,7 @@ export namespace internal {
     );
 
     // Build upload URL
-    const uploadUrl = `${config.baseUrl.replace(/\/$/, '')}/upload/${uploadToken.token}`;
+    const uploadUrl = `${config.baseUrl.replace(/\/$/, '')}/file-storage/upload/${uploadToken.token}`;
 
     return {
       uploadUrl,
@@ -109,7 +109,7 @@ export namespace internal {
       throw new FileNotFoundError(resourceKey);
     }
 
-    const baseFilesUrl = `${config.baseUrl.replace(/\/$/, '')}/files/${encodeURIComponent(resourceKey)}`;
+    const baseFilesUrl = `${config.baseUrl.replace(/\/$/, '')}/file-storage/files/${encodeURIComponent(resourceKey)}`;
 
     // If file is public, return direct URL
     if (metadata.visibility === 'public') {
