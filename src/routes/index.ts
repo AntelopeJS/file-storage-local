@@ -1,6 +1,17 @@
-import { Controller, Put, Get, Parameter, Context, RawBody, HTTPResult, RequestContext } from '@ajs/api/beta';
+import {
+  Controller,
+  Put,
+  Get,
+  Parameter,
+  Context,
+  RawBody,
+  HTTPResult,
+  RequestContext,
+  WriteStream,
+} from '@ajs/api/beta';
 import { promises as fs } from 'fs';
 import { getTokenManager } from '../index';
+import { PassThrough } from 'stream';
 
 /**
  * File Storage HTTP Controller
@@ -110,11 +121,15 @@ export class FileStorageController extends Controller('file-storage') {
   async handleDownload(
     @Parameter('token', 'query') token: string | undefined,
     @Parameter('resourceKey', 'param') resourceKey: string,
-  ): Promise<HTTPResult> {
+    @WriteStream() stream: PassThrough,
+    @Context() context: RequestContext,
+  ): Promise<void> {
     const tokenManager = getTokenManager();
 
     if (!resourceKey) {
-      return new HTTPResult(400, { error: 'Resource key required' });
+      context.response.setStatus(400);
+      stream.write(JSON.stringify({ error: 'Resource key required' }));
+      return;
     }
 
     // Decode URL-encoded characters
@@ -123,35 +138,47 @@ export class FileStorageController extends Controller('file-storage') {
     // Check if file exists
     const exists = await tokenManager.fileExists(decodedResourceKey);
     if (!exists) {
-      return new HTTPResult(404, { error: 'File not found' });
+      context.response.setStatus(404);
+      stream.write(JSON.stringify({ error: 'File not found' }));
+      return;
     }
 
     // Get file metadata
     const metadata = await tokenManager.getFileMetadata(decodedResourceKey);
     if (!metadata) {
-      return new HTTPResult(404, { error: 'File metadata not found' });
+      context.response.setStatus(404);
+      stream.write(JSON.stringify({ error: 'File metadata not found' }));
+      return;
     }
 
     // Check visibility
     if (metadata.visibility === 'private') {
       // Private file: requires valid read token
       if (!token) {
-        return new HTTPResult(403, { error: 'Access denied. Token required for private files.' });
+        context.response.setStatus(403);
+        stream.write(JSON.stringify({ error: 'Access denied. Token required for private files.' }));
+        return;
       }
 
       const readToken = await tokenManager.getReadToken(token);
       if (!readToken) {
-        return new HTTPResult(403, { error: 'Invalid or expired token' });
+        context.response.setStatus(403);
+        stream.write(JSON.stringify({ error: 'Invalid or expired token' }));
+        return;
       }
 
       // Check token expiration
       if (readToken.expiresAt < Date.now()) {
-        return new HTTPResult(403, { error: 'Token expired' });
+        context.response.setStatus(403);
+        stream.write(JSON.stringify({ error: 'Token expired' }));
+        return;
       }
 
       // Verify token matches requested resource
       if (readToken.resourceKey !== decodedResourceKey) {
-        return new HTTPResult(403, { error: 'Token does not match requested resource' });
+        context.response.setStatus(403);
+        stream.write(JSON.stringify({ error: 'Token does not match requested resource' }));
+        return;
       }
     }
 
@@ -160,21 +187,23 @@ export class FileStorageController extends Controller('file-storage') {
       const filePath = tokenManager.getFilePath(decodedResourceKey);
       const fileBuffer = await fs.readFile(filePath);
 
-      const result = new HTTPResult(200, fileBuffer, metadata.mimetype);
-      result.addHeader('Content-Length', metadata.size.toString());
-      result.addHeader(
+      context.response.setStatus(200);
+      stream.write(fileBuffer);
+      context.response.addHeader('Content-Length', metadata.size.toString());
+      context.response.addHeader(
         'Content-Disposition',
         `inline; filename="${metadata.metadata?.['original-filename'] || decodedResourceKey}"`,
       );
-      result.addHeader(
+      context.response.addHeader(
         'Cache-Control',
         metadata.visibility === 'public' ? 'public, max-age=31536000' : 'private, no-cache',
       );
-
-      return result;
+      return;
     } catch (error) {
       console.error('File download error:', error);
-      return new HTTPResult(500, { error: 'Failed to read file' });
+      context.response.setStatus(500);
+      stream.write(JSON.stringify({ error: 'Failed to read file' }));
+      return;
     }
   }
 }
