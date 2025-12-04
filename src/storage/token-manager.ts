@@ -9,6 +9,7 @@ import { Visibility } from '@ajs.local/file-storage/beta';
 export interface UploadToken {
   token: string;
   resourceKey: string;
+  path?: string;
   mimetype: string;
   size: number;
   expiresAt: number;
@@ -30,6 +31,7 @@ export interface ReadToken {
  */
 export interface StoredFileMetadata {
   resourceKey: string;
+  path?: string;
   mimetype: string;
   size: number;
   lastModified: number;
@@ -76,21 +78,14 @@ export class TokenManager {
     return randomUUID();
   }
 
-  /**
-   * Generate a unique resource key with optional path prefix
-   */
-  generateResourceKey(filename: string, path?: string): string {
+  generateResourceKey(filename: string): string {
     const ext = filename.includes('.') ? '.' + filename.split('.').pop() : '';
     const uuid = randomUUID();
-    const prefix = path ? `${path.replace(/^\/|\/$/g, '')}/` : '';
-    return `${prefix}${uuid}${ext}`;
+    return `${uuid}${ext}`;
   }
 
   // ============ Upload Tokens ============
 
-  /**
-   * Create and store an upload token
-   */
   async createUploadToken(
     resourceKey: string,
     mimetype: string,
@@ -98,11 +93,13 @@ export class TokenManager {
     expiresAt: number,
     visibility: Visibility,
     metadata?: Record<string, string>,
+    path?: string,
   ): Promise<UploadToken> {
     const token = this.generateToken();
     const data: UploadToken = {
       token,
       resourceKey,
+      path,
       mimetype,
       size,
       expiresAt,
@@ -226,41 +223,30 @@ export class TokenManager {
 
   // ============ Files ============
 
-  /**
-   * Get the full path to a file
-   */
-  getFilePath(resourceKey: string): string {
-    return join(this.filesPath, resourceKey);
+  getFilePath(resourceKey: string, path?: string): string {
+    const prefix = path ? path.replace(/^\/|\/$/g, '') : '';
+    return prefix ? join(this.filesPath, prefix, resourceKey) : join(this.filesPath, resourceKey);
   }
 
-  /**
-   * Check if a file exists
-   */
-  async fileExists(resourceKey: string): Promise<boolean> {
+  async fileExists(resourceKey: string, path?: string): Promise<boolean> {
     try {
-      await fs.access(this.getFilePath(resourceKey));
+      await fs.access(this.getFilePath(resourceKey, path));
       return true;
     } catch {
       return false;
     }
   }
 
-  /**
-   * Delete a file
-   */
-  async deleteFile(resourceKey: string): Promise<void> {
+  async deleteFile(resourceKey: string, path?: string): Promise<void> {
     try {
-      await fs.unlink(this.getFilePath(resourceKey));
+      await fs.unlink(this.getFilePath(resourceKey, path));
     } catch {
       // Ignore if file doesn't exist
     }
   }
 
-  /**
-   * Ensure the directory for a file exists
-   */
-  async ensureFileDirectory(resourceKey: string): Promise<void> {
-    const filePath = this.getFilePath(resourceKey);
+  async ensureFileDirectory(resourceKey: string, path?: string): Promise<void> {
+    const filePath = this.getFilePath(resourceKey, path);
     const dir = filePath.substring(0, filePath.lastIndexOf('/'));
     await fs.mkdir(dir, { recursive: true });
   }

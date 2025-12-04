@@ -83,16 +83,14 @@ export class FileStorageController extends Controller('file-storage') {
     }
 
     try {
-      // Ensure directory exists for nested paths
-      await tokenManager.ensureFileDirectory(uploadToken.resourceKey);
+      await tokenManager.ensureFileDirectory(uploadToken.resourceKey, uploadToken.path);
 
-      // Write file to storage
-      const filePath = tokenManager.getFilePath(uploadToken.resourceKey);
+      const filePath = tokenManager.getFilePath(uploadToken.resourceKey, uploadToken.path);
       await fs.writeFile(filePath, body);
 
-      // Save metadata
       await tokenManager.saveFileMetadata({
         resourceKey: uploadToken.resourceKey,
+        path: uploadToken.path,
         mimetype: uploadToken.mimetype,
         size: uploadToken.size,
         lastModified: Date.now(),
@@ -100,7 +98,6 @@ export class FileStorageController extends Controller('file-storage') {
         metadata: uploadToken.metadata,
       });
 
-      // Delete used upload token
       await tokenManager.deleteUploadToken(token);
 
       return new HTTPResult(200, { success: true, resourceKey: uploadToken.resourceKey });
@@ -133,23 +130,20 @@ export class FileStorageController extends Controller('file-storage') {
       return;
     }
 
-    // Decode URL-encoded characters
     const decodedResourceKey = decodeURIComponent(resourceKey);
 
-    // Check if file exists
-    const exists = await tokenManager.fileExists(decodedResourceKey);
-    if (!exists) {
-      context.response.setStatus(404);
-      stream.write(JSON.stringify({ error: 'File not found' }));
-      stream.end();
-      return;
-    }
-
-    // Get file metadata
     const metadata = await tokenManager.getFileMetadata(decodedResourceKey);
     if (!metadata) {
       context.response.setStatus(404);
       stream.write(JSON.stringify({ error: 'File metadata not found' }));
+      stream.end();
+      return;
+    }
+
+    const exists = await tokenManager.fileExists(decodedResourceKey, metadata.path);
+    if (!exists) {
+      context.response.setStatus(404);
+      stream.write(JSON.stringify({ error: 'File not found' }));
       stream.end();
       return;
     }
@@ -189,9 +183,8 @@ export class FileStorageController extends Controller('file-storage') {
       }
     }
 
-    // Serve the file
     try {
-      const filePath = tokenManager.getFilePath(decodedResourceKey);
+      const filePath = tokenManager.getFilePath(decodedResourceKey, metadata.path);
       const fileBuffer = await fs.readFile(filePath);
 
       context.response.setStatus(200);

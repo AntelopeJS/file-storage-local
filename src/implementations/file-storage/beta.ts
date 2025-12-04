@@ -49,23 +49,16 @@ export namespace internal {
     const config = getConfig();
     const tokenManager = getTokenManager();
 
-    // Generate unique resource key
-    const resourceKey = tokenManager.generateResourceKey(request.filename, request.path);
-
-    // Determine visibility
+    const resourceKey = tokenManager.generateResourceKey(request.filename);
     const visibility = request.visibility ?? config.defaultVisibility;
-
-    // Calculate expiration
     const expiresIn = config.uploadTokenExpiration;
     const expiresAt = Date.now() + expiresIn * 1000;
 
-    // Build metadata
     const metadata: Record<string, string> = {
       'original-filename': request.filename,
       ...(request.metadata || {}),
     };
 
-    // Create and store upload token
     const uploadToken = await tokenManager.createUploadToken(
       resourceKey,
       request.mimetype,
@@ -73,6 +66,7 @@ export namespace internal {
       expiresAt,
       visibility,
       metadata,
+      request.path,
     );
 
     // Build upload URL
@@ -97,28 +91,24 @@ export namespace internal {
     const config = getConfig();
     const tokenManager = getTokenManager();
 
-    // Check if file exists
-    const exists = await tokenManager.fileExists(resourceKey);
-    if (!exists) {
-      throw new FileNotFoundError(resourceKey);
-    }
-
-    // Get file metadata to check visibility
     const metadata = await tokenManager.getFileMetadata(resourceKey);
     if (!metadata) {
       throw new FileNotFoundError(resourceKey);
     }
 
+    const exists = await tokenManager.fileExists(resourceKey, metadata.path);
+    if (!exists) {
+      throw new FileNotFoundError(resourceKey);
+    }
+
     const baseFilesUrl = `${config.baseUrl.replace(/\/$/, '')}/file-storage/files/${encodeURIComponent(resourceKey)}`;
 
-    // If file is public, return direct URL
     if (metadata.visibility === 'public') {
       return {
         url: baseFilesUrl,
       };
     }
 
-    // For private files, create a read token
     const effectiveExpiresIn = expiresIn ?? config.readTokenExpiration;
     const expiresAt = Date.now() + effectiveExpiresIn * 1000;
 
@@ -133,16 +123,20 @@ export namespace internal {
   export const deleteFile = async (resourceKey: string, _storage?: string): Promise<void> => {
     const tokenManager = getTokenManager();
 
-    // Delete the file
-    await tokenManager.deleteFile(resourceKey);
-
-    // Delete metadata
+    const metadata = await tokenManager.getFileMetadata(resourceKey);
+    await tokenManager.deleteFile(resourceKey, metadata?.path);
     await tokenManager.deleteFileMetadata(resourceKey);
   };
 
   export const fileExists = async (resourceKey: string, _storage?: string): Promise<boolean> => {
     const tokenManager = getTokenManager();
-    return tokenManager.fileExists(resourceKey);
+
+    const metadata = await tokenManager.getFileMetadata(resourceKey);
+    if (!metadata) {
+      return false;
+    }
+
+    return tokenManager.fileExists(resourceKey, metadata.path);
   };
 
   export const getFileMetadata = async (resourceKey: string, _storage?: string): Promise<FileMetadata> => {
