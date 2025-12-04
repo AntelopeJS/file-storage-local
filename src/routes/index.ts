@@ -106,17 +106,12 @@ export class FileStorageController extends Controller('file-storage') {
    * - For public files: serves directly
    * - For private files: requires valid read token via ?token= query param
    */
-  @Get('/files/*')
+  @Get('/files/:resourceKey')
   async handleDownload(
     @Parameter('token', 'query') token: string | undefined,
-    @Context() context: RequestContext,
+    @Parameter('resourceKey', 'param') resourceKey: string,
   ): Promise<HTTPResult> {
     const tokenManager = getTokenManager();
-
-    // Extract resourceKey from URL (everything after /files/)
-    const url = context.url.pathname;
-    const filesPrefix = '/file-storage/files/';
-    const resourceKey = url.startsWith(filesPrefix) ? url.slice(filesPrefix.length) : '';
 
     if (!resourceKey) {
       return new HTTPResult(400, { error: 'Resource key required' });
