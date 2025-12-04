@@ -129,6 +129,7 @@ export class FileStorageController extends Controller('file-storage') {
     if (!resourceKey) {
       context.response.setStatus(400);
       stream.write(JSON.stringify({ error: 'Resource key required' }));
+      stream.end();
       return;
     }
 
@@ -140,6 +141,7 @@ export class FileStorageController extends Controller('file-storage') {
     if (!exists) {
       context.response.setStatus(404);
       stream.write(JSON.stringify({ error: 'File not found' }));
+      stream.end();
       return;
     }
 
@@ -148,6 +150,7 @@ export class FileStorageController extends Controller('file-storage') {
     if (!metadata) {
       context.response.setStatus(404);
       stream.write(JSON.stringify({ error: 'File metadata not found' }));
+      stream.end();
       return;
     }
 
@@ -157,6 +160,7 @@ export class FileStorageController extends Controller('file-storage') {
       if (!token) {
         context.response.setStatus(403);
         stream.write(JSON.stringify({ error: 'Access denied. Token required for private files.' }));
+        stream.end();
         return;
       }
 
@@ -164,6 +168,7 @@ export class FileStorageController extends Controller('file-storage') {
       if (!readToken) {
         context.response.setStatus(403);
         stream.write(JSON.stringify({ error: 'Invalid or expired token' }));
+        stream.end();
         return;
       }
 
@@ -171,6 +176,7 @@ export class FileStorageController extends Controller('file-storage') {
       if (readToken.expiresAt < Date.now()) {
         context.response.setStatus(403);
         stream.write(JSON.stringify({ error: 'Token expired' }));
+        stream.end();
         return;
       }
 
@@ -178,6 +184,7 @@ export class FileStorageController extends Controller('file-storage') {
       if (readToken.resourceKey !== decodedResourceKey) {
         context.response.setStatus(403);
         stream.write(JSON.stringify({ error: 'Token does not match requested resource' }));
+        stream.end();
         return;
       }
     }
@@ -198,11 +205,13 @@ export class FileStorageController extends Controller('file-storage') {
         'Cache-Control',
         metadata.visibility === 'public' ? 'public, max-age=31536000' : 'private, no-cache',
       );
+      stream.end();
       return;
     } catch (error) {
       console.error('File download error:', error);
       context.response.setStatus(500);
       stream.write(JSON.stringify({ error: 'Failed to read file' }));
+      stream.end();
       return;
     }
   }
