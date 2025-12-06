@@ -50,7 +50,6 @@ export namespace internal {
     const tokenManager = getTokenManager();
 
     const resourceKey = tokenManager.generateResourceKey(request.filename);
-    const visibility = request.visibility ?? config.defaultVisibility;
     const expiresIn = config.uploadTokenExpiration;
     const expiresAt = Date.now() + expiresIn * 1000;
 
@@ -64,7 +63,6 @@ export namespace internal {
       request.mimetype,
       request.size,
       expiresAt,
-      visibility,
       metadata,
       request.path,
     );
@@ -103,7 +101,7 @@ export namespace internal {
 
     const baseFilesUrl = `${config.baseUrl.replace(/\/$/, '')}/file-storage/files/${encodeURIComponent(resourceKey)}`;
 
-    if (metadata.visibility === 'public') {
+    if (config.defaultVisibility === 'public') {
       return {
         url: baseFilesUrl,
       };

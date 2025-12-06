@@ -10,7 +10,7 @@ import {
   WriteStream,
 } from '@ajs/api/beta';
 import { promises as fs } from 'fs';
-import { getTokenManager } from '../index';
+import { getTokenManager, getConfig } from '../index';
 import { PassThrough } from 'stream';
 
 /**
@@ -94,7 +94,6 @@ export class FileStorageController extends Controller('file-storage') {
         mimetype: uploadToken.mimetype,
         size: uploadToken.size,
         lastModified: Date.now(),
-        visibility: uploadToken.visibility,
         metadata: uploadToken.metadata,
       });
 
@@ -149,7 +148,8 @@ export class FileStorageController extends Controller('file-storage') {
     }
 
     // Check visibility
-    if (metadata.visibility === 'private') {
+    const config = getConfig();
+    if (config.defaultVisibility === 'private') {
       // Private file: requires valid read token
       if (!token) {
         context.response.setStatus(403);
@@ -196,7 +196,7 @@ export class FileStorageController extends Controller('file-storage') {
       );
       context.response.addHeader(
         'Cache-Control',
-        metadata.visibility === 'public' ? 'public, max-age=31536000' : 'private, no-cache',
+        config.defaultVisibility === 'public' ? 'public, max-age=31536000' : 'private, no-cache',
       );
       stream.end();
       return;

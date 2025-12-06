@@ -1,7 +1,6 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
-import { Visibility } from '@ajs.local/file-storage/beta';
 
 /**
  * Upload token data stored in filesystem
@@ -13,7 +12,6 @@ export interface UploadToken {
   mimetype: string;
   size: number;
   expiresAt: number;
-  visibility: Visibility;
   metadata?: Record<string, string>;
 }
 
@@ -35,7 +33,6 @@ export interface StoredFileMetadata {
   mimetype: string;
   size: number;
   lastModified: number;
-  visibility: Visibility;
   metadata?: Record<string, string>;
 }
 
@@ -91,7 +88,6 @@ export class TokenManager {
     mimetype: string,
     size: number,
     expiresAt: number,
-    visibility: Visibility,
     metadata?: Record<string, string>,
     path?: string,
   ): Promise<UploadToken> {
@@ -103,7 +99,6 @@ export class TokenManager {
       mimetype,
       size,
       expiresAt,
-      visibility,
       metadata,
     };
 
