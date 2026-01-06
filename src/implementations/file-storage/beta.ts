@@ -144,9 +144,9 @@ export namespace internal {
     if (!metadata) {
       throw new FileNotFoundError(resourceKey);
     }
-
     return {
       resourceKey: metadata.resourceKey,
+      filename: metadata.metadata?.['original-filename'] ?? '',
       size: metadata.size,
       mimetype: metadata.mimetype,
       lastModified: metadata.lastModified,
