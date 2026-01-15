@@ -54,7 +54,7 @@ export namespace internal {
     const expiresAt = Date.now() + expiresIn * 1000;
 
     const metadata: Record<string, string> = {
-      'original-filename': request.filename,
+      filename: request.filename,
       ...(request.metadata || {}),
     };
 
@@ -146,7 +146,7 @@ export namespace internal {
     }
     return {
       resourceKey: metadata.resourceKey,
-      filename: metadata.metadata?.['original-filename'] ?? '',
+      filename: metadata.metadata?.filename ?? '',
       size: metadata.size,
       mimetype: metadata.mimetype,
       lastModified: metadata.lastModified,
