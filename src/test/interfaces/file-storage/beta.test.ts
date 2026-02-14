@@ -160,7 +160,10 @@ describe('file-storage interface', () => {
   });
 
   it('throws FileNotFoundError when metadata is requested for missing files', async () => {
-    await assert.rejects(() => GetFileMetadata(MissingResourceKey), (error: unknown) => error instanceof FileNotFoundError);
+    await assert.rejects(
+      () => GetFileMetadata(MissingResourceKey),
+      (error: unknown) => error instanceof FileNotFoundError,
+    );
   });
 
   it('deletes files from storage', async () => {

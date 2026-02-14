@@ -70,7 +70,11 @@ export async function construct(config: ConstructConfig): Promise<void> {
   moduleConfig = applyDefaults(config);
   tokenManager = new TokenManager(moduleConfig.storagePath);
   await tokenManager.initialize();
-  await ImplementInterface(await import('@ajs.local/file-storage/beta'), await import('./implementations/file-storage/beta'));
+  const [fileStorageInterface, fileStorageImplementation] = await Promise.all([
+    import('@ajs.local/file-storage/beta'),
+    import('./implementations/file-storage/beta'),
+  ]);
+  ImplementInterface(fileStorageInterface, fileStorageImplementation);
 }
 
 export function start(): void {
