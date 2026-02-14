@@ -43,7 +43,11 @@
       "core@beta",
       "api@beta"
     ],
-    "importsOptional": []
+    "importsOptional": [],
+    "test": {
+      "project": "src/test/antelope.test.json",
+      "folder": "dist/test"
+    }
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
