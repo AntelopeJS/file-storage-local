@@ -12,6 +12,23 @@ import {
 import { promises as fs } from 'fs';
 import { getTokenManager, getConfig } from '../index';
 import { PassThrough } from 'stream';
+import type { StoredFileMetadata, UploadToken } from '../storage/token-manager';
+
+function buildStoredFileMetadata(uploadToken: UploadToken): StoredFileMetadata {
+  const metadata: StoredFileMetadata = {
+    resourceKey: uploadToken.resourceKey,
+    mimetype: uploadToken.mimetype,
+    size: uploadToken.size,
+    lastModified: Date.now(),
+  };
+  if (uploadToken.path) {
+    metadata.path = uploadToken.path;
+  }
+  if (uploadToken.metadata) {
+    metadata.metadata = uploadToken.metadata;
+  }
+  return metadata;
+}
 
 /**
  * File Storage HTTP Controller
@@ -88,19 +105,12 @@ export class FileStorageController extends Controller('file-storage') {
       const filePath = tokenManager.getFilePath(uploadToken.resourceKey, uploadToken.path);
       await fs.writeFile(filePath, body);
 
-      await tokenManager.saveFileMetadata({
-        resourceKey: uploadToken.resourceKey,
-        path: uploadToken.path,
-        mimetype: uploadToken.mimetype,
-        size: uploadToken.size,
-        lastModified: Date.now(),
-        metadata: uploadToken.metadata,
-      });
+      await tokenManager.saveFileMetadata(buildStoredFileMetadata(uploadToken));
 
       await tokenManager.deleteUploadToken(token);
 
       return new HTTPResult(200, { success: true, resourceKey: uploadToken.resourceKey });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('File upload error:', error);
       return new HTTPResult(500, { error: 'Failed to save file' });
     }
@@ -200,7 +210,7 @@ export class FileStorageController extends Controller('file-storage') {
       );
       stream.end();
       return;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('File download error:', error);
       context.response.setStatus(500);
       stream.write(JSON.stringify({ error: 'Failed to read file' }));
