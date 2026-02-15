@@ -189,7 +189,7 @@ export class TokenManager {
         continue;
       }
       const tokenPath = join(path, file);
-      const tokenData = await this.readJsonFile<ReadToken>(tokenPath);
+      const tokenData = await this.readJsonFile<{ expiresAt: number }>(tokenPath);
       if (!tokenData || tokenData.expiresAt >= now) {
         continue;
       }
