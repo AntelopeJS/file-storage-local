@@ -1,10 +1,16 @@
 import { promises as fs } from 'fs';
-import { join } from 'path';
 import { randomUUID } from 'crypto';
+import { dirname, join } from 'path';
 
-/**
- * Upload token data stored in filesystem
- */
+const FilesDirectory = 'files';
+const MetadataDirectory = 'metadata';
+const TokensDirectory = 'tokens';
+const UploadTokensDirectory = 'upload';
+const ReadTokensDirectory = 'read';
+const JsonFileSuffix = '.json';
+const PathTrimRegex = /^\/|\/$/g;
+const DotCharacter = '.';
+
 export interface UploadToken {
   token: string;
   resourceKey: string;
@@ -15,18 +21,12 @@ export interface UploadToken {
   metadata?: Record<string, string>;
 }
 
-/**
- * Read token data stored in filesystem
- */
 export interface ReadToken {
   token: string;
   resourceKey: string;
   expiresAt: number;
 }
 
-/**
- * File metadata stored in filesystem
- */
 export interface StoredFileMetadata {
   resourceKey: string;
   path?: string;
@@ -36,52 +36,40 @@ export interface StoredFileMetadata {
   metadata?: Record<string, string>;
 }
 
-/**
- * Manages tokens and metadata via local filesystem.
- *
- * WARNING: This module is NOT compatible with clustering/multi-instance deployments.
- * All data is stored on the local filesystem and is not shared between instances.
- * For production multi-instance deployments, use file-storage-s3 instead.
- */
+export interface TokenCleanupResult {
+  uploadTokens: number;
+  readTokens: number;
+}
+
 export class TokenManager {
-  private readonly basePath: string;
   private readonly filesPath: string;
   private readonly metadataPath: string;
   private readonly uploadTokensPath: string;
   private readonly readTokensPath: string;
 
   constructor(storagePath: string) {
-    this.basePath = storagePath;
-    this.filesPath = join(storagePath, 'files');
-    this.metadataPath = join(storagePath, 'metadata');
-    this.uploadTokensPath = join(storagePath, 'tokens', 'upload');
-    this.readTokensPath = join(storagePath, 'tokens', 'read');
+    this.filesPath = join(storagePath, FilesDirectory);
+    this.metadataPath = join(storagePath, MetadataDirectory);
+    this.uploadTokensPath = join(storagePath, TokensDirectory, UploadTokensDirectory);
+    this.readTokensPath = join(storagePath, TokensDirectory, ReadTokensDirectory);
   }
 
-  /**
-   * Initialize storage directories
-   */
   async initialize(): Promise<void> {
-    await fs.mkdir(this.filesPath, { recursive: true });
-    await fs.mkdir(this.metadataPath, { recursive: true });
-    await fs.mkdir(this.uploadTokensPath, { recursive: true });
-    await fs.mkdir(this.readTokensPath, { recursive: true });
+    await Promise.all([
+      fs.mkdir(this.filesPath, { recursive: true }),
+      fs.mkdir(this.metadataPath, { recursive: true }),
+      fs.mkdir(this.uploadTokensPath, { recursive: true }),
+      fs.mkdir(this.readTokensPath, { recursive: true }),
+    ]);
   }
 
-  /**
-   * Generate a unique token
-   */
   generateToken(): string {
     return randomUUID();
   }
 
   generateResourceKey(filename: string): string {
-    const ext = filename.includes('.') ? '.' + filename.split('.').pop() : '';
-    const uuid = randomUUID();
-    return `${uuid}${ext}`;
+    return `${randomUUID()}${extractFileExtension(filename)}`;
   }
-
-  // ============ Upload Tokens ============
 
   async createUploadToken(
     resourceKey: string,
@@ -91,136 +79,69 @@ export class TokenManager {
     metadata?: Record<string, string>,
     path?: string,
   ): Promise<UploadToken> {
-    const token = this.generateToken();
     const data: UploadToken = {
-      token,
+      token: this.generateToken(),
       resourceKey,
-      path,
       mimetype,
       size,
       expiresAt,
-      metadata,
     };
-
-    const tokenPath = join(this.uploadTokensPath, `${token}.json`);
-    await fs.writeFile(tokenPath, JSON.stringify(data, null, 2));
-
+    if (metadata) {
+      data.metadata = metadata;
+    }
+    if (path) {
+      data.path = path;
+    }
+    await this.writeJsonFile(this.getUploadTokenPath(data.token), data);
     return data;
   }
 
-  /**
-   * Get an upload token by its ID
-   */
   async getUploadToken(token: string): Promise<UploadToken | null> {
-    try {
-      const tokenPath = join(this.uploadTokensPath, `${token}.json`);
-      const content = await fs.readFile(tokenPath, 'utf-8');
-      return JSON.parse(content) as UploadToken;
-    } catch {
-      return null;
-    }
+    return this.readJsonFile<UploadToken>(this.getUploadTokenPath(token));
   }
 
-  /**
-   * Delete an upload token
-   */
   async deleteUploadToken(token: string): Promise<void> {
-    try {
-      const tokenPath = join(this.uploadTokensPath, `${token}.json`);
-      await fs.unlink(tokenPath);
-    } catch {
-      // Ignore if token doesn't exist
-    }
+    await this.unlinkIfExists(this.getUploadTokenPath(token));
   }
 
-  // ============ Read Tokens ============
-
-  /**
-   * Create and store a read token
-   */
   async createReadToken(resourceKey: string, expiresAt: number): Promise<ReadToken> {
-    const token = this.generateToken();
     const data: ReadToken = {
-      token,
+      token: this.generateToken(),
       resourceKey,
       expiresAt,
     };
-
-    const tokenPath = join(this.readTokensPath, `${token}.json`);
-    await fs.writeFile(tokenPath, JSON.stringify(data, null, 2));
-
+    await this.writeJsonFile(this.getReadTokenPath(data.token), data);
     return data;
   }
 
-  /**
-   * Get a read token by its ID
-   */
   async getReadToken(token: string): Promise<ReadToken | null> {
-    try {
-      const tokenPath = join(this.readTokensPath, `${token}.json`);
-      const content = await fs.readFile(tokenPath, 'utf-8');
-      return JSON.parse(content) as ReadToken;
-    } catch {
-      return null;
-    }
+    return this.readJsonFile<ReadToken>(this.getReadTokenPath(token));
   }
 
-  /**
-   * Delete a read token
-   */
   async deleteReadToken(token: string): Promise<void> {
-    try {
-      const tokenPath = join(this.readTokensPath, `${token}.json`);
-      await fs.unlink(tokenPath);
-    } catch {
-      // Ignore if token doesn't exist
-    }
+    await this.unlinkIfExists(this.getReadTokenPath(token));
   }
 
-  // ============ File Metadata ============
-
-  /**
-   * Store file metadata
-   */
   async saveFileMetadata(metadata: StoredFileMetadata): Promise<void> {
-    // Handle nested paths by creating directories
-    const metadataFilePath = join(this.metadataPath, `${metadata.resourceKey}.json`);
-    const dir = metadataFilePath.substring(0, metadataFilePath.lastIndexOf('/'));
-    await fs.mkdir(dir, { recursive: true });
-
-    await fs.writeFile(metadataFilePath, JSON.stringify(metadata, null, 2));
+    const metadataFilePath = this.getMetadataPath(metadata.resourceKey);
+    await fs.mkdir(dirname(metadataFilePath), { recursive: true });
+    await this.writeJsonFile(metadataFilePath, metadata);
   }
 
-  /**
-   * Get file metadata
-   */
   async getFileMetadata(resourceKey: string): Promise<StoredFileMetadata | null> {
-    try {
-      const metadataFilePath = join(this.metadataPath, `${resourceKey}.json`);
-      const content = await fs.readFile(metadataFilePath, 'utf-8');
-      return JSON.parse(content) as StoredFileMetadata;
-    } catch {
-      return null;
-    }
+    return this.readJsonFile<StoredFileMetadata>(this.getMetadataPath(resourceKey));
   }
 
-  /**
-   * Delete file metadata
-   */
   async deleteFileMetadata(resourceKey: string): Promise<void> {
-    try {
-      const metadataFilePath = join(this.metadataPath, `${resourceKey}.json`);
-      await fs.unlink(metadataFilePath);
-    } catch {
-      // Ignore if metadata doesn't exist
-    }
+    await this.unlinkIfExists(this.getMetadataPath(resourceKey));
   }
-
-  // ============ Files ============
 
   getFilePath(resourceKey: string, path?: string): string {
-    const prefix = path ? path.replace(/^\/|\/$/g, '') : '';
-    return prefix ? join(this.filesPath, prefix, resourceKey) : join(this.filesPath, resourceKey);
+    const normalizedPath = normalizePath(path);
+    if (!normalizedPath) {
+      return join(this.filesPath, resourceKey);
+    }
+    return join(this.filesPath, normalizedPath, resourceKey);
   }
 
   async fileExists(resourceKey: string, path?: string): Promise<boolean> {
@@ -233,71 +154,95 @@ export class TokenManager {
   }
 
   async deleteFile(resourceKey: string, path?: string): Promise<void> {
-    try {
-      await fs.unlink(this.getFilePath(resourceKey, path));
-    } catch {
-      // Ignore if file doesn't exist
-    }
+    await this.unlinkIfExists(this.getFilePath(resourceKey, path));
   }
 
   async ensureFileDirectory(resourceKey: string, path?: string): Promise<void> {
     const filePath = this.getFilePath(resourceKey, path);
-    const dir = filePath.substring(0, filePath.lastIndexOf('/'));
-    await fs.mkdir(dir, { recursive: true });
+    await fs.mkdir(dirname(filePath), { recursive: true });
   }
 
-  // ============ Cleanup ============
-
-  /**
-   * Clean up expired tokens
-   */
-  async cleanupExpiredTokens(): Promise<{ uploadTokens: number; readTokens: number }> {
+  async cleanupExpiredTokens(): Promise<TokenCleanupResult> {
     const now = Date.now();
-    let uploadTokens = 0;
-    let readTokens = 0;
-
-    // Cleanup upload tokens
-    try {
-      const uploadFiles = await fs.readdir(this.uploadTokensPath);
-      for (const file of uploadFiles) {
-        if (!file.endsWith('.json')) continue;
-        try {
-          const tokenPath = join(this.uploadTokensPath, file);
-          const content = await fs.readFile(tokenPath, 'utf-8');
-          const token = JSON.parse(content) as UploadToken;
-          if (token.expiresAt < now) {
-            await fs.unlink(tokenPath);
-            uploadTokens++;
-          }
-        } catch {
-          // Ignore errors for individual files
-        }
-      }
-    } catch {
-      // Directory might not exist yet
-    }
-
-    // Cleanup read tokens
-    try {
-      const readFiles = await fs.readdir(this.readTokensPath);
-      for (const file of readFiles) {
-        if (!file.endsWith('.json')) continue;
-        try {
-          const tokenPath = join(this.readTokensPath, file);
-          const content = await fs.readFile(tokenPath, 'utf-8');
-          const token = JSON.parse(content) as ReadToken;
-          if (token.expiresAt < now) {
-            await fs.unlink(tokenPath);
-            readTokens++;
-          }
-        } catch {
-          // Ignore errors for individual files
-        }
-      }
-    } catch {
-      // Directory might not exist yet
-    }
-
+    const uploadTokens = await this.cleanupExpiredTokenDirectory(this.uploadTokensPath, now);
+    const readTokens = await this.cleanupExpiredTokenDirectory(this.readTokensPath, now);
     return { uploadTokens, readTokens };
   }
+
+  private getUploadTokenPath(token: string): string {
+    return join(this.uploadTokensPath, `${token}${JsonFileSuffix}`);
+  }
+
+  private getReadTokenPath(token: string): string {
+    return join(this.readTokensPath, `${token}${JsonFileSuffix}`);
+  }
+
+  private getMetadataPath(resourceKey: string): string {
+    return join(this.metadataPath, `${resourceKey}${JsonFileSuffix}`);
+  }
+
+  private async cleanupExpiredTokenDirectory(path: string, now: number): Promise<number> {
+    let removedTokens = 0;
+    const tokenFiles = await this.readDirectory(path);
+    for (const file of tokenFiles) {
+      if (!file.endsWith(JsonFileSuffix)) {
+        continue;
+      }
+      const tokenPath = join(path, file);
+      const tokenData = await this.readJsonFile<{ expiresAt: number }>(tokenPath);
+      if (!tokenData || tokenData.expiresAt >= now) {
+        continue;
+      }
+      await this.unlinkIfExists(tokenPath);
+      removedTokens++;
+    }
+    return removedTokens;
+  }
+
+  private async readDirectory(path: string): Promise<string[]> {
+    try {
+      return await fs.readdir(path);
+    } catch {
+      return [];
+    }
+  }
+
+  private async readJsonFile<T>(path: string): Promise<T | null> {
+    try {
+      const content = await fs.readFile(path, 'utf-8');
+      return JSON.parse(content) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  private async writeJsonFile(path: string, data: unknown): Promise<void> {
+    await fs.writeFile(path, JSON.stringify(data, null, 2));
+  }
+
+  private async unlinkIfExists(path: string): Promise<void> {
+    try {
+      await fs.unlink(path);
+    } catch {
+      return;
+    }
+  }
+}
+
+function extractFileExtension(filename: string): string {
+  if (!filename.includes(DotCharacter)) {
+    return '';
+  }
+  const extension = filename.split(DotCharacter).pop();
+  if (!extension) {
+    return '';
+  }
+  return `${DotCharacter}${extension}`;
+}
+
+function normalizePath(path?: string): string {
+  if (!path) {
+    return '';
+  }
+  return path.replace(PathTrimRegex, '');
 }

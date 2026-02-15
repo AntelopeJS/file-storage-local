@@ -1,0 +1,37 @@
+{
+  "cacheFolder": ".antelope/cache",
+  "modules": {
+    "local": {
+      "source": {
+        "type": "local",
+        "path": "."
+      },
+      "config": {
+        "storagePath": ".antelope/cache/storage",
+        "baseUrl": "http://localhost:3000",
+        "defaultVisibility": "private",
+        "uploadTokenExpiration": 3600,
+        "readTokenExpiration": 300,
+        "cleanupInterval": 300
+      }
+    },
+    "@antelopejs/api": {
+      "source": {
+        "type": "package",
+        "package": "@antelopejs/api",
+        "version": "0.2.0"
+      },
+      "config": {
+        "servers": [
+          {
+            "protocol": "http",
+            "port": "3000"
+          }
+        ],
+        "cors": {
+          "allowedOrigins": ["http://localhost:3000"]
+        }
+      }
+    }
+  }
+}
