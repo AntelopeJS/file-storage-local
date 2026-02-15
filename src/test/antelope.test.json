@@ -14,6 +14,24 @@
         "readTokenExpiration": 300,
         "cleanupInterval": 300
       }
+    },
+    "@antelopejs/api": {
+      "source": {
+        "type": "package",
+        "package": "@antelopejs/api",
+        "version": "0.2.0"
+      },
+      "config": {
+        "servers": [
+          {
+            "protocol": "http",
+            "port": "3000"
+          }
+        ],
+        "cors": {
+          "allowedOrigins": ["http://localhost:3000"]
+        }
+      }
     }
   }
 }
