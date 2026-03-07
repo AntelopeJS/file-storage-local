@@ -1,19 +1,19 @@
 import {
-  UploadRequest,
-  UploadConstraints,
-  PresignedUploadResponse,
-  PresignedReadResponse,
-  FileMetadata,
-  UploadValidationError,
+  type FileMetadata,
   FileNotFoundError,
-} from '@ajs.local/file-storage/beta';
-import { getTokenManager, getConfig } from '../../index';
+  type PresignedReadResponse,
+  type PresignedUploadResponse,
+  type UploadConstraints,
+  type UploadRequest,
+  UploadValidationError,
+} from "@ajs.local/file-storage/beta";
+import { getConfig, getTokenManager } from "../../index";
 
 const BaseUrlTrailingSlashRegex = /\/$/;
-const FileUploadPath = '/file-storage/upload';
-const FileReadPath = '/file-storage/files';
+const FileUploadPath = "/file-storage/upload";
+const FileReadPath = "/file-storage/files";
 const MillisecondsPerSecond = 1000;
-const FilenameMetadataKey = 'filename';
+const FilenameMetadataKey = "filename";
 
 interface StoredMetadataSnapshot {
   resourceKey: string;
@@ -24,7 +24,7 @@ interface StoredMetadataSnapshot {
 }
 
 function normalizeBaseUrl(baseUrl: string): string {
-  return baseUrl.replace(BaseUrlTrailingSlashRegex, '');
+  return baseUrl.replace(BaseUrlTrailingSlashRegex, "");
 }
 
 function buildUploadUrl(baseUrl: string, token: string): string {
@@ -42,11 +42,17 @@ function buildMetadata(request: UploadRequest): Record<string, string> {
   };
 }
 
-function validateUploadRequest(request: UploadRequest, constraints?: UploadConstraints): void {
-  if (constraints?.maxSize !== undefined && request.size > constraints.maxSize) {
+function validateUploadRequest(
+  request: UploadRequest,
+  constraints?: UploadConstraints,
+): void {
+  if (
+    constraints?.maxSize !== undefined &&
+    request.size > constraints.maxSize
+  ) {
     throw new UploadValidationError(
       `File size ${request.size} exceeds maximum allowed size ${constraints.maxSize}`,
-      'SIZE_EXCEEDED',
+      "SIZE_EXCEEDED",
     );
   }
 
@@ -58,15 +64,15 @@ function validateUploadRequest(request: UploadRequest, constraints?: UploadConst
     return;
   }
   throw new UploadValidationError(
-    `MIME type '${request.mimetype}' is not allowed. Allowed types: ${allowedMimetypes.join(', ')}`,
-    'MIMETYPE_NOT_ALLOWED',
+    `MIME type '${request.mimetype}' is not allowed. Allowed types: ${allowedMimetypes.join(", ")}`,
+    "MIMETYPE_NOT_ALLOWED",
   );
 }
 
 function toFileMetadata(metadata: StoredMetadataSnapshot): FileMetadata {
   const fileMetadata: FileMetadata = {
     resourceKey: metadata.resourceKey,
-    filename: metadata.metadata?.[FilenameMetadataKey] ?? '',
+    filename: metadata.metadata?.[FilenameMetadataKey] ?? "",
     size: metadata.size,
     mimetype: metadata.mimetype,
     lastModified: metadata.lastModified,
@@ -104,8 +110,8 @@ export namespace internal {
       resourceKey,
       expiresAt,
       headers: {
-        'Content-Type': request.mimetype,
-        'Content-Length': String(request.size),
+        "Content-Type": request.mimetype,
+        "Content-Length": String(request.size),
       },
     };
   };
@@ -127,28 +133,37 @@ export namespace internal {
       throw new FileNotFoundError(resourceKey);
     }
     const filesUrl = buildFilesUrl(config.baseUrl, resourceKey);
-    if (config.defaultVisibility === 'public') {
+    if (config.defaultVisibility === "public") {
       return {
         url: filesUrl,
       };
     }
     const effectiveExpiresIn = expiresIn ?? config.readTokenExpiration;
     const expiresAt = Date.now() + effectiveExpiresIn * MillisecondsPerSecond;
-    const readToken = await tokenManager.createReadToken(resourceKey, expiresAt);
+    const readToken = await tokenManager.createReadToken(
+      resourceKey,
+      expiresAt,
+    );
     return {
       url: `${filesUrl}?token=${readToken.token}`,
       expiresAt,
     };
   };
 
-  export const deleteFile = async (resourceKey: string, _storage?: string): Promise<void> => {
+  export const deleteFile = async (
+    resourceKey: string,
+    _storage?: string,
+  ): Promise<void> => {
     const tokenManager = getTokenManager();
     const metadata = await tokenManager.getFileMetadata(resourceKey);
     await tokenManager.deleteFile(resourceKey, metadata?.path);
     await tokenManager.deleteFileMetadata(resourceKey);
   };
 
-  export const fileExists = async (resourceKey: string, _storage?: string): Promise<boolean> => {
+  export const fileExists = async (
+    resourceKey: string,
+    _storage?: string,
+  ): Promise<boolean> => {
     const tokenManager = getTokenManager();
     const metadata = await tokenManager.getFileMetadata(resourceKey);
     if (!metadata) {
@@ -157,7 +172,10 @@ export namespace internal {
     return tokenManager.fileExists(resourceKey, metadata.path);
   };
 
-  export const getFileMetadata = async (resourceKey: string, _storage?: string): Promise<FileMetadata> => {
+  export const getFileMetadata = async (
+    resourceKey: string,
+    _storage?: string,
+  ): Promise<FileMetadata> => {
     const tokenManager = getTokenManager();
     const metadata = await tokenManager.getFileMetadata(resourceKey);
     if (!metadata) {
