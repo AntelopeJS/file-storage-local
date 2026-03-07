@@ -1,7 +1,7 @@
-import { ImplementInterface } from '@ajs/core/beta';
-import { TokenManager } from './storage/token-manager';
-import { Visibility } from '@ajs.local/file-storage/beta';
-import './routes';
+import { ImplementInterface } from "@ajs/core/beta";
+import type { Visibility } from "@ajs.local/file-storage/beta";
+import { TokenManager } from "./storage/token-manager";
+import "./routes";
 export interface Config {
   storagePath: string;
   baseUrl: string;
@@ -11,15 +11,15 @@ export interface Config {
   cleanupInterval: number;
 }
 
-type BaseConfig = Pick<Config, 'storagePath' | 'baseUrl'>;
+type BaseConfig = Pick<Config, "storagePath" | "baseUrl">;
 type ConstructConfig = Partial<Config> & BaseConfig;
 
-const DefaultVisibility: Visibility = 'private';
+const DefaultVisibility: Visibility = "private";
 const DefaultUploadTokenExpiration = 3600;
 const DefaultReadTokenExpiration = 60;
 const DefaultCleanupInterval = 300;
 const MillisecondsPerSecond = 1000;
-const TokenCleanupErrorPrefix = '[file-storage-local] Token cleanup error:';
+const TokenCleanupErrorPrefix = "[file-storage-local] Token cleanup error:";
 
 let moduleConfig: Config | null = null;
 let tokenManager: TokenManager | null = null;
@@ -27,14 +27,14 @@ let cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
 
 function ensureModuleConfig(): Config {
   if (!moduleConfig) {
-    throw new Error('Module config is not initialized');
+    throw new Error("Module config is not initialized");
   }
   return moduleConfig;
 }
 
 function ensureTokenManager(): TokenManager {
   if (!tokenManager) {
-    throw new Error('Token manager is not initialized');
+    throw new Error("Token manager is not initialized");
   }
   return tokenManager;
 }
@@ -44,13 +44,18 @@ function applyDefaults(config: ConstructConfig): Config {
     storagePath: config.storagePath,
     baseUrl: config.baseUrl,
     defaultVisibility: config.defaultVisibility ?? DefaultVisibility,
-    uploadTokenExpiration: config.uploadTokenExpiration ?? DefaultUploadTokenExpiration,
-    readTokenExpiration: config.readTokenExpiration ?? DefaultReadTokenExpiration,
+    uploadTokenExpiration:
+      config.uploadTokenExpiration ?? DefaultUploadTokenExpiration,
+    readTokenExpiration:
+      config.readTokenExpiration ?? DefaultReadTokenExpiration,
     cleanupInterval: config.cleanupInterval ?? DefaultCleanupInterval,
   };
 }
 
-function startTokenCleanupInterval(config: Config, manager: TokenManager): void {
+function startTokenCleanupInterval(
+  config: Config,
+  manager: TokenManager,
+): void {
   cleanupIntervalId = setInterval(() => {
     void manager.cleanupExpiredTokens().catch((error: unknown) => {
       console.error(TokenCleanupErrorPrefix, error);
@@ -71,10 +76,10 @@ export async function construct(config: ConstructConfig): Promise<void> {
   tokenManager = new TokenManager(moduleConfig.storagePath);
   await tokenManager.initialize();
   const [fileStorageInterface, fileStorageImplementation] = await Promise.all([
-    import('@ajs.local/file-storage/beta'),
-    import('./implementations/file-storage/beta'),
+    import("@ajs.local/file-storage/beta"),
+    import("./implementations/file-storage/beta"),
   ]);
-  ImplementInterface(fileStorageInterface, fileStorageImplementation);
+  await ImplementInterface(fileStorageInterface, fileStorageImplementation);
 }
 
 export function start(): void {

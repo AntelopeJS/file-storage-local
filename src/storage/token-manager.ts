@@ -1,15 +1,15 @@
-import { promises as fs } from 'fs';
-import { randomUUID } from 'crypto';
-import { dirname, join } from 'path';
+import { randomUUID } from "node:crypto";
+import { promises as fs } from "node:fs";
+import { dirname, join } from "node:path";
 
-const FilesDirectory = 'files';
-const MetadataDirectory = 'metadata';
-const TokensDirectory = 'tokens';
-const UploadTokensDirectory = 'upload';
-const ReadTokensDirectory = 'read';
-const JsonFileSuffix = '.json';
+const FilesDirectory = "files";
+const MetadataDirectory = "metadata";
+const TokensDirectory = "tokens";
+const UploadTokensDirectory = "upload";
+const ReadTokensDirectory = "read";
+const JsonFileSuffix = ".json";
 const PathTrimRegex = /^\/|\/$/g;
-const DotCharacter = '.';
+const DotCharacter = ".";
 
 export interface UploadToken {
   token: string;
@@ -50,8 +50,16 @@ export class TokenManager {
   constructor(storagePath: string) {
     this.filesPath = join(storagePath, FilesDirectory);
     this.metadataPath = join(storagePath, MetadataDirectory);
-    this.uploadTokensPath = join(storagePath, TokensDirectory, UploadTokensDirectory);
-    this.readTokensPath = join(storagePath, TokensDirectory, ReadTokensDirectory);
+    this.uploadTokensPath = join(
+      storagePath,
+      TokensDirectory,
+      UploadTokensDirectory,
+    );
+    this.readTokensPath = join(
+      storagePath,
+      TokensDirectory,
+      ReadTokensDirectory,
+    );
   }
 
   async initialize(): Promise<void> {
@@ -104,7 +112,10 @@ export class TokenManager {
     await this.unlinkIfExists(this.getUploadTokenPath(token));
   }
 
-  async createReadToken(resourceKey: string, expiresAt: number): Promise<ReadToken> {
+  async createReadToken(
+    resourceKey: string,
+    expiresAt: number,
+  ): Promise<ReadToken> {
     const data: ReadToken = {
       token: this.generateToken(),
       resourceKey,
@@ -128,8 +139,12 @@ export class TokenManager {
     await this.writeJsonFile(metadataFilePath, metadata);
   }
 
-  async getFileMetadata(resourceKey: string): Promise<StoredFileMetadata | null> {
-    return this.readJsonFile<StoredFileMetadata>(this.getMetadataPath(resourceKey));
+  async getFileMetadata(
+    resourceKey: string,
+  ): Promise<StoredFileMetadata | null> {
+    return this.readJsonFile<StoredFileMetadata>(
+      this.getMetadataPath(resourceKey),
+    );
   }
 
   async deleteFileMetadata(resourceKey: string): Promise<void> {
@@ -164,8 +179,14 @@ export class TokenManager {
 
   async cleanupExpiredTokens(): Promise<TokenCleanupResult> {
     const now = Date.now();
-    const uploadTokens = await this.cleanupExpiredTokenDirectory(this.uploadTokensPath, now);
-    const readTokens = await this.cleanupExpiredTokenDirectory(this.readTokensPath, now);
+    const uploadTokens = await this.cleanupExpiredTokenDirectory(
+      this.uploadTokensPath,
+      now,
+    );
+    const readTokens = await this.cleanupExpiredTokenDirectory(
+      this.readTokensPath,
+      now,
+    );
     return { uploadTokens, readTokens };
   }
 
@@ -181,7 +202,10 @@ export class TokenManager {
     return join(this.metadataPath, `${resourceKey}${JsonFileSuffix}`);
   }
 
-  private async cleanupExpiredTokenDirectory(path: string, now: number): Promise<number> {
+  private async cleanupExpiredTokenDirectory(
+    path: string,
+    now: number,
+  ): Promise<number> {
     let removedTokens = 0;
     const tokenFiles = await this.readDirectory(path);
     for (const file of tokenFiles) {
@@ -189,7 +213,9 @@ export class TokenManager {
         continue;
       }
       const tokenPath = join(path, file);
-      const tokenData = await this.readJsonFile<{ expiresAt: number }>(tokenPath);
+      const tokenData = await this.readJsonFile<{ expiresAt: number }>(
+        tokenPath,
+      );
       if (!tokenData || tokenData.expiresAt >= now) {
         continue;
       }
@@ -209,7 +235,7 @@ export class TokenManager {
 
   private async readJsonFile<T>(path: string): Promise<T | null> {
     try {
-      const content = await fs.readFile(path, 'utf-8');
+      const content = await fs.readFile(path, "utf-8");
       return JSON.parse(content) as T;
     } catch {
       return null;
@@ -231,18 +257,18 @@ export class TokenManager {
 
 function extractFileExtension(filename: string): string {
   if (!filename.includes(DotCharacter)) {
-    return '';
+    return "";
   }
   const extension = filename.split(DotCharacter).pop();
   if (!extension) {
-    return '';
+    return "";
   }
   return `${DotCharacter}${extension}`;
 }
 
 function normalizePath(path?: string): string {
   if (!path) {
-    return '';
+    return "";
   }
-  return path.replace(PathTrimRegex, '');
+  return path.replace(PathTrimRegex, "");
 }
