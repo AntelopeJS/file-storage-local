@@ -8,12 +8,12 @@ import {
   FileNotFoundError,
   GetFileMetadata,
   UploadValidationError,
-} from "@ajs.local/file-storage/beta";
-import { getConfig, getTokenManager } from "../../../index";
+} from "@antelopejs/interface-file-storage";
+import { getConfig, getTokenManager } from "../index";
 import type {
   StoredFileMetadata,
   TokenManager,
-} from "../../../storage/token-manager";
+} from "../storage/token-manager";
 
 const ExistingResourceKey = "seed/existing.txt";
 const MetadataOnlyResourceKey = "seed/metadata-only.txt";

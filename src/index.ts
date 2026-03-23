@@ -1,5 +1,5 @@
-import { ImplementInterface } from "@ajs/core/beta";
-import type { Visibility } from "@ajs.local/file-storage/beta";
+import { ImplementInterface } from "@antelopejs/interface-core";
+import type { Visibility } from "@antelopejs/interface-file-storage";
 import { TokenManager } from "./storage/token-manager";
 import "./routes";
 export interface Config {
@@ -76,10 +76,10 @@ export async function construct(config: ConstructConfig): Promise<void> {
   tokenManager = new TokenManager(moduleConfig.storagePath);
   await tokenManager.initialize();
   const [fileStorageInterface, fileStorageImplementation] = await Promise.all([
-    import("@ajs.local/file-storage/beta"),
-    import("./implementations/file-storage/beta"),
+    import("@antelopejs/interface-file-storage"),
+    import("./implementations/file-storage"),
   ]);
-  await ImplementInterface(fileStorageInterface, fileStorageImplementation);
+  void ImplementInterface(fileStorageInterface, fileStorageImplementation);
 }
 
 export function start(): void {

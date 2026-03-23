@@ -6,7 +6,7 @@ import {
   type UploadConstraints,
   type UploadRequest,
   UploadValidationError,
-} from "@ajs.local/file-storage/beta";
+} from "@antelopejs/interface-file-storage";
 import { getConfig, getTokenManager } from "../../index";
 
 const BaseUrlTrailingSlashRegex = /\/$/;

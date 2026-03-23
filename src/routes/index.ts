@@ -10,7 +10,7 @@ import {
   RawBody,
   type RequestContext,
   WriteStream,
-} from "@ajs/api/beta";
+} from "@antelopejs/interface-api";
 import { getConfig, getTokenManager } from "../index";
 import type { StoredFileMetadata, UploadToken } from "../storage/token-manager";
 
