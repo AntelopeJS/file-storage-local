@@ -1,6 +1,6 @@
 {
   "name": "@antelopejs/file-storage-local",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "A file storage module that implements the file-storage interface of AntelopeJS with local filesystem storage. NOT compatible with clustering - use file-storage-s3 for multi-instance deployments.",
   "repository": {
     "type": "git",
