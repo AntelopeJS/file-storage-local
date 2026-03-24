@@ -17,9 +17,9 @@ export default defineConfig({
     },
     api: {
       source: {
-        type: "local",
-        path: "../api",
-        installCommand: ["pnpm install", "npx tsc"],
+        type: "package",
+        package: "@antelopejs/api",
+        version: "1.0.0",
       },
       config: {
         servers: [{ protocol: "http", host: "127.0.0.1", port: 3000 }],
