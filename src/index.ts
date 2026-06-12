@@ -1,4 +1,5 @@
 import { ImplementInterface } from "@antelopejs/interface-core";
+import { Logging } from "@antelopejs/interface-core/logging";
 import type { Visibility } from "@antelopejs/interface-file-storage";
 import { TokenManager } from "./storage/token-manager";
 import "./routes";
@@ -58,7 +59,7 @@ function startTokenCleanupInterval(
 ): void {
   cleanupIntervalId = setInterval(() => {
     void manager.cleanupExpiredTokens().catch((error: unknown) => {
-      console.error(TokenCleanupErrorPrefix, error);
+      Logging.Error(TokenCleanupErrorPrefix, error);
     });
   }, config.cleanupInterval * MillisecondsPerSecond);
 }

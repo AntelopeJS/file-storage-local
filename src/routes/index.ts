@@ -11,6 +11,7 @@ import {
   type RequestContext,
   WriteStream,
 } from "@antelopejs/interface-api";
+import { Logging } from "@antelopejs/interface-core/logging";
 import { getConfig, getTokenManager } from "../index";
 import type { StoredFileMetadata, UploadToken } from "../storage/token-manager";
 
@@ -122,7 +123,7 @@ export class FileStorageController extends Controller("file-storage") {
         resourceKey: uploadToken.resourceKey,
       });
     } catch (error: unknown) {
-      console.error("File upload error:", error);
+      Logging.Error("File upload error:", error);
       return new HTTPResult(500, { error: "Failed to save file" });
     }
   }
@@ -236,7 +237,7 @@ export class FileStorageController extends Controller("file-storage") {
       stream.end();
       return;
     } catch (error: unknown) {
-      console.error("File download error:", error);
+      Logging.Error("File download error:", error);
       context.response.setStatus(500);
       stream.write(JSON.stringify({ error: "Failed to read file" }));
       stream.end();
