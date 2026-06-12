@@ -1,6 +1,23 @@
 # Changelog
 
 
+## v0.0.3
+
+[compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.0.2...v0.0.3)
+
+### 💅 Refactors
+
+- Switch test modules from local to npm packages ([d29d61d](https://github.com/AntelopeJS/file-storage-local/commit/d29d61d))
+- **logging:** Replace console calls with Logging interface ([fdf27ba](https://github.com/AntelopeJS/file-storage-local/commit/fdf27ba))
+
+### 🏡 Chore
+
+- Update dependencies ([bec1c0d](https://github.com/AntelopeJS/file-storage-local/commit/bec1c0d))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <upd4ting@gmail.com>
+
 ## v0.0.2
 
 
