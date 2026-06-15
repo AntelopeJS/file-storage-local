@@ -1,8 +1,11 @@
 import {
   type FileMetadata,
   FileNotFoundError,
+  isStagedKey,
   type PresignedReadResponse,
   type PresignedUploadResponse,
+  type PromoteFileResponse,
+  stripStagingPrefix,
   type UploadConstraints,
   type UploadRequest,
   UploadValidationError,
@@ -92,7 +95,11 @@ export namespace internal {
     validateUploadRequest(request, constraints);
     const config = getConfig();
     const tokenManager = getTokenManager();
-    const resourceKey = tokenManager.generateResourceKey(request.filename);
+    const baseKey = tokenManager.generateResourceKey(request.filename);
+    const resourceKey = request.staging
+      ? tokenManager.toStagedResourceKey(baseKey, request.path)
+      : baseKey;
+    const tokenPath = request.staging ? undefined : request.path;
     const expiresIn = config.uploadTokenExpiration;
     const expiresAt = Date.now() + expiresIn * MillisecondsPerSecond;
     const metadata = buildMetadata(request);
@@ -102,7 +109,7 @@ export namespace internal {
       request.size,
       expiresAt,
       metadata,
-      request.path,
+      tokenPath,
     );
     const uploadUrl = buildUploadUrl(config.baseUrl, uploadToken.token);
     return {
@@ -182,5 +189,25 @@ export namespace internal {
       throw new FileNotFoundError(resourceKey);
     }
     return toFileMetadata(metadata);
+  };
+
+  export const moveFile = async (
+    sourceKey: string,
+    destKey: string,
+    _storage?: string,
+  ): Promise<void> => {
+    await getTokenManager().moveFile(sourceKey, destKey);
+  };
+
+  export const promoteFile = async (
+    resourceKey: string,
+    _storage?: string,
+  ): Promise<PromoteFileResponse> => {
+    if (!isStagedKey(resourceKey)) {
+      return { resourceKey };
+    }
+    const destKey = stripStagingPrefix(resourceKey);
+    await getTokenManager().moveFile(resourceKey, destKey);
+    return { resourceKey: destKey };
   };
 }

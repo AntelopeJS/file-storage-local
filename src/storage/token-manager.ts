@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { promises as fs } from "node:fs";
+import { type Dirent, promises as fs } from "node:fs";
 import { dirname, join } from "node:path";
+import {
+  isStagedKey,
+  STAGING_PREFIX,
+  toStagedKey,
+} from "@antelopejs/interface-file-storage";
 
 const FilesDirectory = "files";
 const MetadataDirectory = "metadata";
@@ -42,14 +47,20 @@ export interface TokenCleanupResult {
 }
 
 export class TokenManager {
+  private readonly storagePath: string;
   private readonly filesPath: string;
   private readonly metadataPath: string;
+  private readonly stagingFilesPath: string;
+  private readonly stagingMetadataPath: string;
   private readonly uploadTokensPath: string;
   private readonly readTokensPath: string;
 
   constructor(storagePath: string) {
+    this.storagePath = storagePath;
     this.filesPath = join(storagePath, FilesDirectory);
     this.metadataPath = join(storagePath, MetadataDirectory);
+    this.stagingFilesPath = join(storagePath, STAGING_PREFIX);
+    this.stagingMetadataPath = join(this.metadataPath, STAGING_PREFIX);
     this.uploadTokensPath = join(
       storagePath,
       TokensDirectory,
@@ -77,6 +88,12 @@ export class TokenManager {
 
   generateResourceKey(filename: string): string {
     return `${randomUUID()}${extractFileExtension(filename)}`;
+  }
+
+  toStagedResourceKey(baseKey: string, path?: string): string {
+    const normalizedPath = normalizePath(path);
+    const inner = normalizedPath ? `${normalizedPath}/${baseKey}` : baseKey;
+    return toStagedKey(inner);
   }
 
   async createUploadToken(
@@ -152,6 +169,9 @@ export class TokenManager {
   }
 
   getFilePath(resourceKey: string, path?: string): string {
+    if (isStagedKey(resourceKey)) {
+      return join(this.storagePath, resourceKey);
+    }
     const normalizedPath = normalizePath(path);
     if (!normalizedPath) {
       return join(this.filesPath, resourceKey);
@@ -177,6 +197,42 @@ export class TokenManager {
     await fs.mkdir(dirname(filePath), { recursive: true });
   }
 
+  async moveFile(sourceKey: string, destKey: string): Promise<void> {
+    if (sourceKey === destKey) {
+      return;
+    }
+    const sourceMetadata = await this.getFileMetadata(sourceKey);
+    if (!(await this.fileExists(sourceKey, sourceMetadata?.path))) {
+      return;
+    }
+    const sourceFilePath = this.getFilePath(sourceKey, sourceMetadata?.path);
+    const destFilePath = this.getFilePath(destKey);
+    await fs.mkdir(dirname(destFilePath), { recursive: true });
+    await fs.rename(sourceFilePath, destFilePath);
+    await this.relocateMetadata(sourceKey, destKey, sourceMetadata);
+  }
+
+  private async relocateMetadata(
+    sourceKey: string,
+    destKey: string,
+    sourceMetadata: StoredFileMetadata | null,
+  ): Promise<void> {
+    if (!sourceMetadata) {
+      return;
+    }
+    const destMetadata: StoredFileMetadata = {
+      resourceKey: destKey,
+      mimetype: sourceMetadata.mimetype,
+      size: sourceMetadata.size,
+      lastModified: sourceMetadata.lastModified,
+    };
+    if (sourceMetadata.metadata) {
+      destMetadata.metadata = sourceMetadata.metadata;
+    }
+    await this.saveFileMetadata(destMetadata);
+    await this.deleteFileMetadata(sourceKey);
+  }
+
   async cleanupExpiredTokens(): Promise<TokenCleanupResult> {
     const now = Date.now();
     const uploadTokens = await this.cleanupExpiredTokenDirectory(
@@ -188,6 +244,53 @@ export class TokenManager {
       now,
     );
     return { uploadTokens, readTokens };
+  }
+
+  async cleanupExpiredStagingFiles(maxAgeMs: number): Promise<number> {
+    const cutoff = Date.now() - maxAgeMs;
+    const removedFiles = await this.removeFilesOlderThan(
+      this.stagingFilesPath,
+      cutoff,
+    );
+    await this.removeFilesOlderThan(this.stagingMetadataPath, cutoff);
+    return removedFiles;
+  }
+
+  private async removeFilesOlderThan(
+    directory: string,
+    cutoff: number,
+  ): Promise<number> {
+    const entries = await this.readDirEntries(directory);
+    let removed = 0;
+    for (const entry of entries) {
+      const entryPath = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        removed += await this.removeFilesOlderThan(entryPath, cutoff);
+        continue;
+      }
+      if (await this.isOlderThan(entryPath, cutoff)) {
+        await this.unlinkIfExists(entryPath);
+        removed++;
+      }
+    }
+    return removed;
+  }
+
+  private async readDirEntries(directory: string): Promise<Dirent[]> {
+    try {
+      return await fs.readdir(directory, { withFileTypes: true });
+    } catch {
+      return [];
+    }
+  }
+
+  private async isOlderThan(path: string, cutoff: number): Promise<boolean> {
+    try {
+      const stats = await fs.stat(path);
+      return stats.mtimeMs < cutoff;
+    } catch {
+      return false;
+    }
   }
 
   private getUploadTokenPath(token: string): string {

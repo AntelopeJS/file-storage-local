@@ -10,6 +10,12 @@ export interface Config {
   uploadTokenExpiration: number;
   readTokenExpiration: number;
   cleanupInterval: number;
+  /**
+   * When set (in seconds), the periodic cleanup also deletes staged files older
+   * than this age, mirroring the S3 staging lifecycle rule. Omit to disable the
+   * staging sweep (the local backend then keeps staged files indefinitely).
+   */
+  stagingExpiration?: number;
 }
 
 type BaseConfig = Pick<Config, "storagePath" | "baseUrl">;
@@ -20,7 +26,7 @@ const DefaultUploadTokenExpiration = 3600;
 const DefaultReadTokenExpiration = 60;
 const DefaultCleanupInterval = 300;
 const MillisecondsPerSecond = 1000;
-const TokenCleanupErrorPrefix = "[file-storage-local] Token cleanup error:";
+const CleanupErrorPrefix = "[file-storage-local] Cleanup error:";
 
 let moduleConfig: Config | null = null;
 let tokenManager: TokenManager | null = null;
@@ -41,7 +47,7 @@ function ensureTokenManager(): TokenManager {
 }
 
 function applyDefaults(config: ConstructConfig): Config {
-  return {
+  const resolved: Config = {
     storagePath: config.storagePath,
     baseUrl: config.baseUrl,
     defaultVisibility: config.defaultVisibility ?? DefaultVisibility,
@@ -51,15 +57,29 @@ function applyDefaults(config: ConstructConfig): Config {
       config.readTokenExpiration ?? DefaultReadTokenExpiration,
     cleanupInterval: config.cleanupInterval ?? DefaultCleanupInterval,
   };
+  if (config.stagingExpiration !== undefined) {
+    resolved.stagingExpiration = config.stagingExpiration;
+  }
+  return resolved;
 }
 
-function startTokenCleanupInterval(
+async function runCleanup(
   config: Config,
   manager: TokenManager,
-): void {
+): Promise<void> {
+  await manager.cleanupExpiredTokens();
+  const stagingExpiration = config.stagingExpiration;
+  if (stagingExpiration !== undefined && stagingExpiration > 0) {
+    await manager.cleanupExpiredStagingFiles(
+      stagingExpiration * MillisecondsPerSecond,
+    );
+  }
+}
+
+function startCleanupInterval(config: Config, manager: TokenManager): void {
   cleanupIntervalId = setInterval(() => {
-    void manager.cleanupExpiredTokens().catch((error: unknown) => {
-      Logging.Error(TokenCleanupErrorPrefix, error);
+    void runCleanup(config, manager).catch((error: unknown) => {
+      Logging.Error(CleanupErrorPrefix, error);
     });
   }, config.cleanupInterval * MillisecondsPerSecond);
 }
@@ -88,7 +108,7 @@ export function start(): void {
   if (config.cleanupInterval <= 0) {
     return;
   }
-  startTokenCleanupInterval(config, ensureTokenManager());
+  startCleanupInterval(config, ensureTokenManager());
 }
 
 export function stop(): void {
