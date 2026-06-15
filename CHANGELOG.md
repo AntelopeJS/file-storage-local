@@ -1,6 +1,18 @@
 # Changelog
 
 
+## v0.1.0
+
+[compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.0.3...v0.1.0)
+
+### 🚀 Enhancements
+
+- Staging upload + file promotion ([#6](https://github.com/AntelopeJS/file-storage-local/pull/6))
+
+### ❤️ Contributors
+
+- Fabrice Cst <fabrice@altab.be>
+
 ## v0.0.3
 
 [compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.0.2...v0.0.3)
