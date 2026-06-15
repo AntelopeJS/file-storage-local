@@ -1,11 +1,8 @@
 import {
   type FileMetadata,
   FileNotFoundError,
-  isStagedKey,
   type PresignedReadResponse,
   type PresignedUploadResponse,
-  type PromoteFileResponse,
-  stripStagingPrefix,
   type UploadConstraints,
   type UploadRequest,
   UploadValidationError,
@@ -197,17 +194,5 @@ export namespace internal {
     _storage?: string,
   ): Promise<void> => {
     await getTokenManager().moveFile(sourceKey, destKey);
-  };
-
-  export const promoteFile = async (
-    resourceKey: string,
-    _storage?: string,
-  ): Promise<PromoteFileResponse> => {
-    if (!isStagedKey(resourceKey)) {
-      return { resourceKey };
-    }
-    const destKey = stripStagingPrefix(resourceKey);
-    await getTokenManager().moveFile(resourceKey, destKey);
-    return { resourceKey: destKey };
   };
 }

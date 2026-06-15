@@ -238,6 +238,13 @@ describe("file-storage interface", () => {
     assert.equal(await FileExists(ExistingResourceKey), true);
   });
 
+  it("throws when promoting a staged key that no longer exists", async () => {
+    await assert.rejects(
+      () => PromoteFile(`${STAGING_PREFIX}uploads/ghost.txt`),
+      (error: unknown) => error instanceof FileNotFoundError,
+    );
+  });
+
   it("is safe to promote twice", async () => {
     await seedStagedFile(StagedResourceKey);
 
@@ -271,6 +278,10 @@ describe("file-storage interface", () => {
 
     assert.equal(removed, 1);
     assert.equal(await FileExists(StagedResourceKey), false);
+    await assert.rejects(
+      () => GetFileMetadata(StagedResourceKey),
+      (error: unknown) => error instanceof FileNotFoundError,
+    );
     assert.equal(
       await tokenManager.fileExists(`${STAGING_PREFIX}uploads/fresh.txt`),
       true,

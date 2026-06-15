@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { type Dirent, promises as fs } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import {
   isStagedKey,
   STAGING_PREFIX,
@@ -51,7 +51,6 @@ export class TokenManager {
   private readonly filesPath: string;
   private readonly metadataPath: string;
   private readonly stagingFilesPath: string;
-  private readonly stagingMetadataPath: string;
   private readonly uploadTokensPath: string;
   private readonly readTokensPath: string;
 
@@ -60,7 +59,6 @@ export class TokenManager {
     this.filesPath = join(storagePath, FilesDirectory);
     this.metadataPath = join(storagePath, MetadataDirectory);
     this.stagingFilesPath = join(storagePath, STAGING_PREFIX);
-    this.stagingMetadataPath = join(this.metadataPath, STAGING_PREFIX);
     this.uploadTokensPath = join(
       storagePath,
       TokensDirectory,
@@ -248,15 +246,10 @@ export class TokenManager {
 
   async cleanupExpiredStagingFiles(maxAgeMs: number): Promise<number> {
     const cutoff = Date.now() - maxAgeMs;
-    const removedFiles = await this.removeFilesOlderThan(
-      this.stagingFilesPath,
-      cutoff,
-    );
-    await this.removeFilesOlderThan(this.stagingMetadataPath, cutoff);
-    return removedFiles;
+    return this.removeExpiredStagedEntries(this.stagingFilesPath, cutoff);
   }
 
-  private async removeFilesOlderThan(
+  private async removeExpiredStagedEntries(
     directory: string,
     cutoff: number,
   ): Promise<number> {
@@ -265,15 +258,20 @@ export class TokenManager {
     for (const entry of entries) {
       const entryPath = join(directory, entry.name);
       if (entry.isDirectory()) {
-        removed += await this.removeFilesOlderThan(entryPath, cutoff);
+        removed += await this.removeExpiredStagedEntries(entryPath, cutoff);
         continue;
       }
       if (await this.isOlderThan(entryPath, cutoff)) {
         await this.unlinkIfExists(entryPath);
+        await this.deleteFileMetadata(this.resourceKeyFromFilePath(entryPath));
         removed++;
       }
     }
     return removed;
+  }
+
+  private resourceKeyFromFilePath(filePath: string): string {
+    return relative(this.storagePath, filePath).split(sep).join("/");
   }
 
   private async readDirEntries(directory: string): Promise<Dirent[]> {
