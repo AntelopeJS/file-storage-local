@@ -7,6 +7,9 @@ import {
   FileExists,
   FileNotFoundError,
   GetFileMetadata,
+  MoveFile,
+  PromoteFile,
+  STAGING_PREFIX,
   UploadValidationError,
 } from "@antelopejs/interface-file-storage";
 import { getConfig, getTokenManager } from "../index";
@@ -18,8 +21,11 @@ import type {
 const ExistingResourceKey = "seed/existing.txt";
 const MetadataOnlyResourceKey = "seed/metadata-only.txt";
 const MissingResourceKey = "seed/missing.txt";
+const StagedResourceKey = `${STAGING_PREFIX}uploads/staged.txt`;
+const PromotedResourceKey = "uploads/staged.txt";
 const SeedTimestamp = 1767225600000;
 const ExistingFileContent = "existing file content";
+const StagedFileContent = "staged file content";
 
 interface SeedFile {
   resourceKey: string;
@@ -186,6 +192,102 @@ describe("file-storage interface", () => {
     assert.equal(metadata.filename, "");
     assert.deepEqual(metadata.metadata, { source: "imported" });
   });
+
+  it("places staged uploads under the staging prefix preserving the path", async () => {
+    const response = await CreateUploadUrl({
+      filename: "draft.png",
+      size: 64,
+      mimetype: "image/png",
+      path: "/uploads/",
+      staging: true,
+    });
+
+    assert.ok(response.resourceKey.startsWith(`${STAGING_PREFIX}uploads/`));
+    assert.ok(response.resourceKey.endsWith(".png"));
+  });
+
+  it("keeps non-staged uploads out of the staging prefix", async () => {
+    const response = await CreateUploadUrl({
+      filename: "final.png",
+      size: 64,
+      mimetype: "image/png",
+      path: "/uploads/",
+    });
+
+    assert.equal(response.resourceKey.startsWith(STAGING_PREFIX), false);
+  });
+
+  it("promotes a staged file and returns the clean key", async () => {
+    await seedStagedFile(StagedResourceKey);
+
+    const result = await PromoteFile(StagedResourceKey);
+
+    assert.equal(result.resourceKey, PromotedResourceKey);
+    assert.equal(await FileExists(PromotedResourceKey), true);
+    assert.equal(await FileExists(StagedResourceKey), false);
+
+    const metadata = await GetFileMetadata(PromotedResourceKey);
+    assert.equal(metadata.resourceKey, PromotedResourceKey);
+    assert.equal(metadata.size, StagedFileContent.length);
+  });
+
+  it("is a no-op when promoting a non-staged key", async () => {
+    const result = await PromoteFile(ExistingResourceKey);
+
+    assert.equal(result.resourceKey, ExistingResourceKey);
+    assert.equal(await FileExists(ExistingResourceKey), true);
+  });
+
+  it("throws when promoting a staged key that no longer exists", async () => {
+    await assert.rejects(
+      () => PromoteFile(`${STAGING_PREFIX}uploads/ghost.txt`),
+      (error: unknown) => error instanceof FileNotFoundError,
+    );
+  });
+
+  it("is safe to promote twice", async () => {
+    await seedStagedFile(StagedResourceKey);
+
+    const first = await PromoteFile(StagedResourceKey);
+    const second = await PromoteFile(StagedResourceKey);
+    const third = await PromoteFile(PromotedResourceKey);
+
+    assert.equal(first.resourceKey, PromotedResourceKey);
+    assert.equal(second.resourceKey, PromotedResourceKey);
+    assert.equal(third.resourceKey, PromotedResourceKey);
+    assert.equal(await FileExists(PromotedResourceKey), true);
+  });
+
+  it("moves a file to a new key with MoveFile", async () => {
+    await seedStagedFile(StagedResourceKey);
+
+    await MoveFile(StagedResourceKey, PromotedResourceKey);
+
+    assert.equal(await FileExists(PromotedResourceKey), true);
+    assert.equal(await FileExists(StagedResourceKey), false);
+  });
+
+  it("sweeps only expired staged files", async () => {
+    const tokenManager = getTokenManager();
+    await seedStagedFile(StagedResourceKey);
+    await seedStagedFile(`${STAGING_PREFIX}uploads/fresh.txt`);
+    await backdateFile(tokenManager.getFilePath(StagedResourceKey));
+    await backdateFile(tokenManager.getFilePath(ExistingResourceKey));
+
+    const removed = await tokenManager.cleanupExpiredStagingFiles(1000);
+
+    assert.equal(removed, 1);
+    assert.equal(await FileExists(StagedResourceKey), false);
+    await assert.rejects(
+      () => GetFileMetadata(StagedResourceKey),
+      (error: unknown) => error instanceof FileNotFoundError,
+    );
+    assert.equal(
+      await tokenManager.fileExists(`${STAGING_PREFIX}uploads/fresh.txt`),
+      true,
+    );
+    assert.equal(await FileExists(ExistingResourceKey), true);
+  });
 });
 
 async function resetStorage(): Promise<void> {
@@ -223,4 +325,22 @@ function buildStoredFileMetadata(seedFile: SeedFile): StoredFileMetadata {
     metadata.metadata = seedFile.metadata;
   }
   return metadata;
+}
+
+async function seedStagedFile(resourceKey: string): Promise<void> {
+  const tokenManager = getTokenManager();
+  await tokenManager.ensureFileDirectory(resourceKey);
+  await fs.writeFile(tokenManager.getFilePath(resourceKey), StagedFileContent);
+  await tokenManager.saveFileMetadata({
+    resourceKey,
+    mimetype: "text/plain",
+    size: StagedFileContent.length,
+    lastModified: Date.now(),
+    metadata: { filename: "staged.txt" },
+  });
+}
+
+async function backdateFile(path: string): Promise<void> {
+  const pastSeconds = (Date.now() - 3_600_000) / 1000;
+  await fs.utimes(path, pastSeconds, pastSeconds);
 }
