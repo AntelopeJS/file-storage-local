@@ -21,6 +21,7 @@ import type {
 const ExistingResourceKey = "seed/existing.txt";
 const MetadataOnlyResourceKey = "seed/metadata-only.txt";
 const MissingResourceKey = "seed/missing.txt";
+const LargeResourceKey = "seed/large.bin";
 const StagedResourceKey = `${STAGING_PREFIX}uploads/staged.txt`;
 const PromotedResourceKey = "uploads/staged.txt";
 const SeedTimestamp = 1767225600000;
@@ -128,6 +129,47 @@ describe("file-storage interface", () => {
 
     assert.ok(response.url.startsWith(expectedPrefix));
     assert.ok((response.expiresAt ?? 0) > Date.now());
+  });
+
+  it("streams file content when downloading via the presigned read URL", async () => {
+    const response = await CreateReadUrl(ExistingResourceKey, 120);
+    const download = await fetch(response.url);
+
+    assert.equal(download.status, 200);
+    assert.equal(
+      download.headers.get("content-length"),
+      ExistingFileContent.length.toString(),
+    );
+    assert.equal(await download.text(), ExistingFileContent);
+  });
+
+  it("streams downloads larger than the stream buffer size", async () => {
+    const largeContent = "antelope".repeat(512 * 1024);
+    await seedFileStorage(getTokenManager(), {
+      resourceKey: LargeResourceKey,
+      content: largeContent,
+      mimetype: "application/octet-stream",
+    });
+
+    const response = await CreateReadUrl(LargeResourceKey, 120);
+    const download = await fetch(response.url);
+    const body = await download.text();
+
+    assert.equal(download.status, 200);
+    assert.equal(body.length, largeContent.length);
+    assert.equal(body, largeContent);
+  });
+
+  it("answers HEAD download requests with headers only", async () => {
+    const response = await CreateReadUrl(ExistingResourceKey, 120);
+    const download = await fetch(response.url, { method: "HEAD" });
+
+    assert.equal(download.status, 200);
+    assert.equal(
+      download.headers.get("content-length"),
+      ExistingFileContent.length.toString(),
+    );
+    assert.equal(await download.text(), "");
   });
 
   it("returns public read URL when default visibility is public", async () => {
