@@ -251,8 +251,11 @@ export class FileStorageController extends Controller("file-storage") {
       };
       fileStream.on("error", abortDownload);
       stream.on("error", abortDownload);
-      // Release the file handle if the client disconnects mid-download.
-      context.rawResponse.once("close", () => fileStream.destroy());
+      // Release the file handle and the PassThrough if the client disconnects mid-download.
+      context.rawResponse.once("close", () => {
+        fileStream.destroy();
+        stream.destroy();
+      });
       fileStream.pipe(stream);
       return;
     } catch (error: unknown) {
