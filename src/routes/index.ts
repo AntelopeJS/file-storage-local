@@ -246,12 +246,13 @@ export class FileStorageController extends Controller("file-storage") {
         // The 200 status is committed once streaming starts, so abort the
         // connection instead of writing an error body.
         fileStream.destroy();
+        stream.destroy();
         context.rawResponse.destroy();
       };
       fileStream.on("error", abortDownload);
       stream.on("error", abortDownload);
       // Release the file handle if the client disconnects mid-download.
-      context.rawResponse.on("close", () => fileStream.destroy());
+      context.rawResponse.once("close", () => fileStream.destroy());
       fileStream.pipe(stream);
       return;
     } catch (error: unknown) {
