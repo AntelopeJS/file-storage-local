@@ -8,7 +8,7 @@ export default defineConfig({
       source: { type: "local", path: "." },
       config: {
         storagePath: ".antelope/cache/storage",
-        baseUrl: "http://localhost:3000",
+        baseUrl: "http://127.0.0.1:3000",
         defaultVisibility: "private",
         uploadTokenExpiration: 3600,
         readTokenExpiration: 300,

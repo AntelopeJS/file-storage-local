@@ -1,4 +1,4 @@
-import { promises as fs } from "node:fs";
+import { createReadStream, promises as fs } from "node:fs";
 import type { PassThrough } from "node:stream";
 import {
   Context,
@@ -219,10 +219,7 @@ export class FileStorageController extends Controller("file-storage") {
         decodedResourceKey,
         metadata.path,
       );
-      const fileBuffer = await fs.readFile(filePath);
-
       context.response.setStatus(200);
-      stream.write(fileBuffer);
       context.response.addHeader("Content-Length", metadata.size.toString());
       context.response.addHeader(
         "Content-Disposition",
@@ -234,7 +231,32 @@ export class FileStorageController extends Controller("file-storage") {
           ? "public, max-age=31536000"
           : "private, no-cache",
       );
-      stream.end();
+
+      // HEAD requests only need the headers, so skip reading the file.
+      if (context.rawRequest.method?.toLowerCase() === "head") {
+        stream.end();
+        return;
+      }
+
+      // Stream the file instead of buffering it in memory so peak memory
+      // stays bounded regardless of file size or concurrent downloads.
+      const fileStream = createReadStream(filePath);
+      const abortDownload = (error: Error) => {
+        Logging.Error("File download error:", error);
+        // The 200 status is committed once streaming starts, so abort the
+        // connection instead of writing an error body.
+        fileStream.destroy();
+        stream.destroy();
+        context.rawResponse.destroy();
+      };
+      fileStream.on("error", abortDownload);
+      stream.on("error", abortDownload);
+      // Release the file handle and the PassThrough if the client disconnects mid-download.
+      context.rawResponse.once("close", () => {
+        fileStream.destroy();
+        stream.destroy();
+      });
+      fileStream.pipe(stream);
       return;
     } catch (error: unknown) {
       Logging.Error("File download error:", error);
