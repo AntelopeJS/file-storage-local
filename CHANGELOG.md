@@ -1,6 +1,18 @@
 # Changelog
 
 
+## v0.1.2
+
+[compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.1...v0.1.2)
+
+### 🔥 Performance
+
+- Stream file downloads instead of buffering entire files in memory ([#9](https://github.com/AntelopeJS/file-storage-local/pull/9))
+
+### ❤️ Contributors
+
+- Fabrice Cst <fabrice@altab.be>
+
 ## v0.1.1
 
 [compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.0...v0.1.1)
