@@ -1,6 +1,18 @@
 # Changelog
 
 
+## v0.1.3
+
+[compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.2...v0.1.3)
+
+### 🩹 Fixes
+
+- **deps:** Support newer interface releases ([#10](https://github.com/AntelopeJS/file-storage-local/pull/10))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <upd4ting@gmail.com>
+
 ## v0.1.2
 
 [compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.1...v0.1.2)
