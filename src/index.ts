@@ -1,50 +1,29 @@
-import { ImplementInterface } from "@antelopejs/interface-core";
 import { Logging } from "@antelopejs/interface-core/logging";
-import type { Visibility } from "@antelopejs/interface-file-storage";
+import { ImplementInterface } from "@antelopejs/interface-core";
+
 import { TokenManager } from "./storage/token-manager";
+import {
+  clearModuleState,
+  type Config,
+  getConfig,
+  getTokenManager,
+  setModuleState,
+} from "./module-config";
 import "./routes";
-export interface Config {
-  storagePath: string;
-  baseUrl: string;
-  defaultVisibility: Visibility;
-  uploadTokenExpiration: number;
-  readTokenExpiration: number;
-  cleanupInterval: number;
-  /**
-   * When set (in seconds), the periodic cleanup also deletes staged files older
-   * than this age, mirroring the S3 staging lifecycle rule. Omit to disable the
-   * staging sweep (the local backend then keeps staged files indefinitely).
-   */
-  stagingExpiration?: number;
-}
+
+export { type Config, getConfig, getTokenManager };
 
 type BaseConfig = Pick<Config, "storagePath" | "baseUrl">;
 type ConstructConfig = Partial<Config> & BaseConfig;
 
-const DefaultVisibility: Visibility = "private";
+const DefaultVisibility: Config["defaultVisibility"] = "private";
 const DefaultUploadTokenExpiration = 3600;
 const DefaultReadTokenExpiration = 60;
 const DefaultCleanupInterval = 300;
 const MillisecondsPerSecond = 1000;
 const CleanupErrorPrefix = "[file-storage-local] Cleanup error:";
 
-let moduleConfig: Config | null = null;
-let tokenManager: TokenManager | null = null;
 let cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
-
-function ensureModuleConfig(): Config {
-  if (!moduleConfig) {
-    throw new Error("Module config is not initialized");
-  }
-  return moduleConfig;
-}
-
-function ensureTokenManager(): TokenManager {
-  if (!tokenManager) {
-    throw new Error("Token manager is not initialized");
-  }
-  return tokenManager;
-}
 
 function applyDefaults(config: ConstructConfig): Config {
   const resolved: Config = {
@@ -84,18 +63,11 @@ function startCleanupInterval(config: Config, manager: TokenManager): void {
   }, config.cleanupInterval * MillisecondsPerSecond);
 }
 
-export function getConfig(): Config {
-  return ensureModuleConfig();
-}
-
-export function getTokenManager(): TokenManager {
-  return ensureTokenManager();
-}
-
 export async function construct(config: ConstructConfig): Promise<void> {
-  moduleConfig = applyDefaults(config);
-  tokenManager = new TokenManager(moduleConfig.storagePath);
-  await tokenManager.initialize();
+  const resolved = applyDefaults(config);
+  const manager = new TokenManager(resolved.storagePath);
+  setModuleState(resolved, manager);
+  await manager.initialize();
   const [fileStorageInterface, fileStorageImplementation] = await Promise.all([
     import("@antelopejs/interface-file-storage"),
     import("./implementations/file-storage"),
@@ -104,11 +76,11 @@ export async function construct(config: ConstructConfig): Promise<void> {
 }
 
 export function start(): void {
-  const config = ensureModuleConfig();
+  const config = getConfig();
   if (config.cleanupInterval <= 0) {
     return;
   }
-  startCleanupInterval(config, ensureTokenManager());
+  startCleanupInterval(config, getTokenManager());
 }
 
 export function stop(): void {
@@ -120,6 +92,5 @@ export function stop(): void {
 
 export function destroy(): void {
   stop();
-  tokenManager = null;
-  moduleConfig = null;
+  clearModuleState();
 }

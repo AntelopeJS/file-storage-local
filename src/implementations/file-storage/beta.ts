@@ -7,7 +7,8 @@ import {
   type UploadRequest,
   UploadValidationError,
 } from "@antelopejs/interface-file-storage";
-import { getConfig, getTokenManager } from "../../index";
+
+import { getConfig, getTokenManager } from "../../module-config";
 
 const BaseUrlTrailingSlashRegex = /\/$/;
 const FileUploadPath = "/file-storage/upload";
@@ -38,7 +39,7 @@ function buildFilesUrl(baseUrl: string, resourceKey: string): string {
 function buildMetadata(request: UploadRequest): Record<string, string> {
   return {
     [FilenameMetadataKey]: request.filename,
-    ...(request.metadata ?? {}),
+    ...request.metadata,
   };
 }
 

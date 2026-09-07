@@ -1,5 +1,6 @@
-import { createReadStream, promises as fs } from "node:fs";
 import type { PassThrough } from "node:stream";
+import { createReadStream, promises as fs } from "node:fs";
+import { Logging } from "@antelopejs/interface-core/logging";
 import {
   Context,
   Controller,
@@ -11,8 +12,8 @@ import {
   type RequestContext,
   WriteStream,
 } from "@antelopejs/interface-api";
-import { Logging } from "@antelopejs/interface-core/logging";
-import { getConfig, getTokenManager } from "../index";
+
+import { getConfig, getTokenManager } from "../module-config";
 import type { StoredFileMetadata, UploadToken } from "../storage/token-manager";
 
 function buildStoredFileMetadata(uploadToken: UploadToken): StoredFileMetadata {
