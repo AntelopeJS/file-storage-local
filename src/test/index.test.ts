@@ -12,6 +12,7 @@ import {
   STAGING_PREFIX,
   UploadValidationError,
 } from "@antelopejs/interface-file-storage";
+
 import { getConfig, getTokenManager } from "../index";
 import type {
   StoredFileMetadata,
