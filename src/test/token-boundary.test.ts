@@ -1,12 +1,13 @@
+import { join } from "node:path";
 import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import {
   CreateReadUrl,
   CreateUploadUrl,
   DeleteFile,
   FileExists,
 } from "@antelopejs/interface-file-storage";
+
 import { getConfig, getTokenManager } from "../index";
 
 const CONTENT = "private file bytes";
