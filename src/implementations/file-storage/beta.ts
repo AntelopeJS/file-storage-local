@@ -8,7 +8,7 @@ import {
   UploadValidationError,
 } from "@antelopejs/interface-file-storage";
 
-import { getConfig, getTokenManager } from "../../module-config";
+import { getStorageConfig, getTokenManager } from "../../module-config";
 
 const BaseUrlTrailingSlashRegex = /\/$/;
 const FileUploadPath = "/file-storage/upload";
@@ -88,11 +88,11 @@ export namespace internal {
   export const createUploadUrl = async (
     request: UploadRequest,
     constraints?: UploadConstraints,
-    _storage?: string,
+    storage?: string,
   ): Promise<PresignedUploadResponse> => {
     validateUploadRequest(request, constraints);
-    const config = getConfig();
-    const tokenManager = getTokenManager();
+    const config = getStorageConfig(storage);
+    const tokenManager = getTokenManager(storage);
     const baseKey = tokenManager.generateResourceKey(request.filename);
     const resourceKey = request.staging
       ? tokenManager.toStagedResourceKey(baseKey, request.path)
@@ -124,10 +124,10 @@ export namespace internal {
   export const createReadUrl = async (
     resourceKey: string,
     expiresIn?: number,
-    _storage?: string,
+    storage?: string,
   ): Promise<PresignedReadResponse> => {
-    const config = getConfig();
-    const tokenManager = getTokenManager();
+    const config = getStorageConfig(storage);
+    const tokenManager = getTokenManager(storage);
     const metadata = await tokenManager.getFileMetadata(resourceKey);
     if (!metadata) {
       throw new FileNotFoundError(resourceKey);
@@ -157,9 +157,9 @@ export namespace internal {
 
   export const deleteFile = async (
     resourceKey: string,
-    _storage?: string,
+    storage?: string,
   ): Promise<void> => {
-    const tokenManager = getTokenManager();
+    const tokenManager = getTokenManager(storage);
     const metadata = await tokenManager.getFileMetadata(resourceKey);
     await tokenManager.deleteFile(resourceKey, metadata?.path);
     await tokenManager.deleteFileMetadata(resourceKey);
@@ -167,9 +167,9 @@ export namespace internal {
 
   export const fileExists = async (
     resourceKey: string,
-    _storage?: string,
+    storage?: string,
   ): Promise<boolean> => {
-    const tokenManager = getTokenManager();
+    const tokenManager = getTokenManager(storage);
     const metadata = await tokenManager.getFileMetadata(resourceKey);
     if (!metadata) {
       return false;
@@ -179,9 +179,9 @@ export namespace internal {
 
   export const getFileMetadata = async (
     resourceKey: string,
-    _storage?: string,
+    storage?: string,
   ): Promise<FileMetadata> => {
-    const tokenManager = getTokenManager();
+    const tokenManager = getTokenManager(storage);
     const metadata = await tokenManager.getFileMetadata(resourceKey);
     if (!metadata) {
       throw new FileNotFoundError(resourceKey);
@@ -192,8 +192,8 @@ export namespace internal {
   export const moveFile = async (
     sourceKey: string,
     destKey: string,
-    _storage?: string,
+    storage?: string,
   ): Promise<void> => {
-    await getTokenManager().moveFile(sourceKey, destKey);
+    await getTokenManager(storage).moveFile(sourceKey, destKey);
   };
 }

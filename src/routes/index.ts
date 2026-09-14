@@ -16,6 +16,8 @@ import {
 import { getConfig, getTokenManager } from "../module-config";
 import type { StoredFileMetadata, UploadToken } from "../storage/token-manager";
 
+export * from "./attachments";
+
 function buildStoredFileMetadata(uploadToken: UploadToken): StoredFileMetadata {
   const metadata: StoredFileMetadata = {
     resourceKey: uploadToken.resourceKey,

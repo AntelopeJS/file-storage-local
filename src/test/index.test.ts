@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
 import {
+  CreatePrivateReadUrl,
+  CreatePrivateUploadUrl,
+  DeleteAttachment,
+  GetPrivateFileMetadata,
+  PrepareAttachment,
+  PublishAttachment,
+} from "@antelopejs/interface-file-storage/attachments";
+import {
   CreateReadUrl,
   CreateUploadUrl,
   DeleteFile,
@@ -330,6 +338,62 @@ describe("file-storage interface", () => {
       true,
     );
     assert.equal(await FileExists(ExistingResourceKey), true);
+  });
+
+  it("keeps attachment bytes private until immutable publication", async () => {
+    const content = "private attachment bytes";
+    const upload = await CreatePrivateUploadUrl({
+      filename: "evidence.txt",
+      size: content.length,
+      mimetype: "text/plain",
+    });
+    const response = await fetch(upload.uploadUrl, {
+      method: "PUT",
+      headers: upload.headers,
+      body: content,
+    });
+    assert.equal(response.status, 200);
+    assert.equal(
+      (
+        await fetch(upload.uploadUrl, {
+          method: "PUT",
+          headers: upload.headers,
+          body: content,
+        })
+      ).status,
+      403,
+    );
+
+    const destinationKey = `snapshot-${Date.now()}.txt`;
+    await Promise.all([
+      PrepareAttachment(upload.resourceKey, destinationKey),
+      PrepareAttachment(upload.resourceKey, destinationKey),
+    ]);
+    const metadata = await GetPrivateFileMetadata(destinationKey);
+    assert.equal(metadata.filename, "evidence.txt");
+    assert.equal(metadata.size, content.length);
+    assert.equal(metadata.mimetype, "text/plain");
+
+    const read = await CreatePrivateReadUrl(destinationKey, 600);
+    assert.ok((read.expiresAt ?? 0) <= Date.now() + 60_000);
+    assert.equal(await (await fetch(read.url)).text(), content);
+    const published = await PublishAttachment(destinationKey);
+    assert.equal(published.expiresAt, undefined);
+    assert.equal(await (await fetch(published.url)).text(), content);
+    await DeleteAttachment(destinationKey);
+    await assert.rejects(() => GetPrivateFileMetadata(destinationKey));
+  });
+
+  it("rejects unknown attachment storage and escaped keys", async () => {
+    await assert.rejects(() =>
+      CreatePrivateUploadUrl(
+        { filename: "x", size: 1, mimetype: "text/plain" },
+        undefined,
+        "missing",
+      ),
+    );
+    await assert.rejects(() => PrepareAttachment("../source", "destination"));
+    await assert.rejects(() => PrepareAttachment("source", "../destination"));
   });
 });
 

@@ -2,11 +2,13 @@ import { Logging } from "@antelopejs/interface-core/logging";
 import { ImplementInterface } from "@antelopejs/interface-core";
 
 import { TokenManager } from "./storage/token-manager";
+import { AttachmentManager } from "./storage/attachment-manager";
 import {
   clearModuleState,
   type Config,
   getConfig,
   getTokenManager,
+  registerStorageManagers,
   setModuleState,
 } from "./module-config";
 import "./routes";
@@ -27,6 +29,7 @@ let cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
 
 function applyDefaults(config: ConstructConfig): Config {
   const resolved: Config = {
+    ...config,
     storagePath: config.storagePath,
     baseUrl: config.baseUrl,
     defaultVisibility: config.defaultVisibility ?? DefaultVisibility,
@@ -55,6 +58,31 @@ async function runCleanup(
   }
 }
 
+interface StorageEntry {
+  storage?: string;
+  config: Config;
+}
+
+function storageEntries(config: Config): StorageEntry[] {
+  const named = Object.entries(config.storages ?? {}).map(
+    ([storage, value]) => ({ storage, config: applyDefaults(value) }),
+  );
+  return [{ config }, ...named];
+}
+
+async function initializeStorage(entry: StorageEntry): Promise<void> {
+  const manager = new TokenManager(entry.config.storagePath);
+  const attachmentPath =
+    entry.config.attachmentStoragePath ??
+    `${entry.config.storagePath}-attachments`;
+  const attachmentManager = new AttachmentManager(attachmentPath);
+  await Promise.all([
+    manager.initialize(),
+    attachmentManager.initialize(entry.config.storagePath),
+  ]);
+  registerStorageManagers(entry.storage, manager, attachmentManager);
+}
+
 function startCleanupInterval(config: Config, manager: TokenManager): void {
   cleanupIntervalId = setInterval(() => {
     void runCleanup(config, manager).catch((error: unknown) => {
@@ -67,12 +95,20 @@ export async function construct(config: ConstructConfig): Promise<void> {
   const resolved = applyDefaults(config);
   const manager = new TokenManager(resolved.storagePath);
   setModuleState(resolved, manager);
-  await manager.initialize();
-  const [fileStorageInterface, fileStorageImplementation] = await Promise.all([
+  await Promise.all(storageEntries(resolved).map(initializeStorage));
+  const [
+    fileStorageInterface,
+    fileStorageImplementation,
+    attachmentInterface,
+    attachmentImplementation,
+  ] = await Promise.all([
     import("@antelopejs/interface-file-storage"),
     import("./implementations/file-storage"),
+    import("@antelopejs/interface-file-storage/attachments"),
+    import("./implementations/attachments"),
   ]);
   void ImplementInterface(fileStorageInterface, fileStorageImplementation);
+  void ImplementInterface(attachmentInterface, attachmentImplementation);
 }
 
 export function start(): void {
