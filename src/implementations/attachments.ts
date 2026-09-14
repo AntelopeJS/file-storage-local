@@ -104,6 +104,8 @@ export namespace internal {
     expiresIn: number,
     storage?: string,
   ): Promise<PresignedReadResponse> {
+    if (!Number.isFinite(expiresIn) || expiresIn <= 0)
+      throw new Error("Read URL expiration must be a positive finite number");
     await getAttachmentManager(storage)
       .readPath(resourceKey)
       .catch(() => {

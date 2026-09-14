@@ -21,6 +21,12 @@ export interface AttachmentReadToken {
   expiresAt: number;
 }
 
+interface SnapshotMetadata extends FileMetadata {
+  sourceKey?: string;
+}
+
+const TemporaryLifetime = 24 * 60 * 60 * 1000;
+
 export class AttachmentManager {
   private readonly root: string;
   private readonly temporary: string;
@@ -52,6 +58,7 @@ export class AttachmentManager {
     request: UploadRequest,
     expiresAt: number,
   ): AttachmentUploadToken {
+    this.cleanupMemoryTokens();
     const resourceKey = `${randomUUID()}${this.extension(request.filename)}`;
     const token = randomUUID();
     const upload = { token, resourceKey, request, expiresAt };
@@ -60,12 +67,14 @@ export class AttachmentManager {
   }
 
   consumeUpload(token: string): AttachmentUploadToken | undefined {
+    this.cleanupMemoryTokens();
     const upload = this.tokens.get(token);
     if (upload) this.tokens.delete(token);
     return upload;
   }
 
   createReadToken(resourceKey: string, expiresAt: number): string {
+    this.cleanupMemoryTokens();
     this.validateKey(resourceKey);
     const token = randomUUID();
     this.readTokens.set(token, { resourceKey, expiresAt });
@@ -73,6 +82,7 @@ export class AttachmentManager {
   }
 
   getReadToken(token: string): AttachmentReadToken | undefined {
+    this.cleanupMemoryTokens();
     return this.readTokens.get(token);
   }
 
@@ -101,14 +111,16 @@ export class AttachmentManager {
   async publish(resourceKey: string): Promise<void> {
     this.validateKey(resourceKey);
     await this.copyFileImmutable(
-      this.path(this.privateFiles, resourceKey),
+      await this.readPath(resourceKey),
       this.path(this.publicFiles, resourceKey),
     );
   }
 
   async metadataFor(resourceKey: string): Promise<FileMetadata> {
     this.validateKey(resourceKey);
-    const content = await fs.readFile(this.metadataPath(resourceKey), "utf8");
+    const path = this.metadataPath(resourceKey);
+    await this.assertContainedFile(path, this.metadata);
+    const content = await fs.readFile(path, "utf8");
     return JSON.parse(content) as FileMetadata;
   }
 
@@ -116,20 +128,54 @@ export class AttachmentManager {
     sourceKey: string,
     destinationKey: string,
   ): Promise<void> {
-    const destination = this.path(this.privateFiles, destinationKey);
-    try {
-      await fs.access(destination);
-      return;
-    } catch {}
-    await this.copyFileImmutable(
-      this.path(this.temporary, sourceKey),
-      destination,
-    );
     const sourceMetadata = await this.metadataFor(sourceKey);
-    await this.writeMetadataFile(destinationKey, {
+    const snapshotMetadata: SnapshotMetadata = {
       ...sourceMetadata,
       resourceKey: destinationKey,
-    });
+      sourceKey,
+    };
+    const ownsSnapshot = await this.claimSnapshot(
+      destinationKey,
+      snapshotMetadata,
+    );
+    if (!ownsSnapshot) return;
+    const source = this.path(this.temporary, sourceKey);
+    await this.assertContainedFile(source, this.temporary);
+    await this.copyFileImmutable(
+      source,
+      this.path(this.privateFiles, destinationKey),
+    );
+  }
+
+  private async claimSnapshot(
+    destinationKey: string,
+    metadata: SnapshotMetadata,
+  ): Promise<boolean> {
+    try {
+      await fs.writeFile(
+        this.metadataPath(destinationKey),
+        JSON.stringify(metadata),
+        {
+          flag: "wx",
+        },
+      );
+      return true;
+    } catch (error: unknown) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      const existing = (await this.metadataFor(
+        destinationKey,
+      )) as SnapshotMetadata;
+      if (existing.sourceKey && existing.sourceKey !== metadata.sourceKey)
+        throw new Error(
+          "Attachment snapshot destination already belongs to another source",
+        );
+      try {
+        await fs.access(this.path(this.privateFiles, destinationKey));
+        return false;
+      } catch {
+        return existing.sourceKey === metadata.sourceKey;
+      }
+    }
   }
 
   private async copyFileImmutable(
@@ -150,7 +196,11 @@ export class AttachmentManager {
   async readPath(resourceKey: string): Promise<string> {
     this.validateKey(resourceKey);
     const path = this.path(this.privateFiles, resourceKey);
-    await fs.access(path);
+    await Promise.all([
+      fs.access(path),
+      fs.access(this.metadataPath(resourceKey)),
+    ]);
+    await this.assertContainedFile(path, this.privateFiles);
     return path;
   }
 
@@ -159,14 +209,39 @@ export class AttachmentManager {
     return this.path(this.publicFiles, resourceKey);
   }
 
+  async readablePublicPath(resourceKey: string): Promise<string> {
+    const path = this.publicPath(resourceKey);
+    await fs.access(path);
+    await this.assertContainedFile(path, this.publicFiles);
+    return path;
+  }
+
   async delete(resourceKey: string): Promise<void> {
     this.validateKey(resourceKey);
     await Promise.all(
       [this.temporary, this.privateFiles, this.publicFiles].map((root) =>
-        fs.unlink(this.path(root, resourceKey)).catch(() => undefined),
+        this.unlinkIfMissing(this.path(root, resourceKey)),
       ),
     );
-    await fs.unlink(this.metadataPath(resourceKey)).catch(() => undefined);
+    await this.unlinkIfMissing(this.metadataPath(resourceKey));
+  }
+
+  async cleanupExpiredTemporary(): Promise<number> {
+    const cutoff = Date.now() - TemporaryLifetime;
+    const entries = await fs.readdir(this.temporary, { withFileTypes: true });
+    const expired = await Promise.all(
+      entries
+        .filter((entry) => entry.isFile())
+        .map(async (entry) => {
+          const path = this.path(this.temporary, entry.name);
+          const stat = await fs.stat(path);
+          if (stat.mtimeMs >= cutoff) return 0;
+          await this.unlinkIfMissing(path);
+          await this.unlinkIfMissing(this.metadataPath(entry.name));
+          return 1;
+        }),
+    );
+    return expired.reduce<number>((total, count) => total + count, 0);
   }
 
   private async writeMetadata(
@@ -223,5 +298,35 @@ export class AttachmentManager {
       throw new Error(
         "Attachment storage must not be inside generic storage roots",
       );
+  }
+
+  get rootPath(): string {
+    return this.root;
+  }
+
+  private cleanupMemoryTokens(): void {
+    const now = Date.now();
+    for (const [token, upload] of this.tokens)
+      if (upload.expiresAt < now) this.tokens.delete(token);
+    for (const [token, read] of this.readTokens)
+      if (read.expiresAt < now) this.readTokens.delete(token);
+  }
+
+  private async assertContainedFile(path: string, root: string): Promise<void> {
+    const [canonicalPath, canonicalRoot] = await Promise.all([
+      fs.realpath(path),
+      fs.realpath(root),
+    ]);
+    const relation = relative(canonicalRoot, canonicalPath);
+    if (relation.startsWith(`..${sep}`) || relation === "..")
+      throw new Error("Attachment path escapes its storage root");
+  }
+
+  private async unlinkIfMissing(path: string): Promise<void> {
+    try {
+      await fs.unlink(path);
+    } catch (error: unknown) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
   }
 }

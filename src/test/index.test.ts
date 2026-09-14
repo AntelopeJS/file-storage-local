@@ -381,7 +381,35 @@ describe("file-storage interface", () => {
     assert.equal(published.expiresAt, undefined);
     assert.equal(await (await fetch(published.url)).text(), content);
     await DeleteAttachment(destinationKey);
+    assert.equal((await fetch(read.url)).status, 404);
     await assert.rejects(() => GetPrivateFileMetadata(destinationKey));
+  });
+
+  it("accepts attachment uploads larger than one MiB", async () => {
+    const content = Buffer.alloc(2 * 1024 * 1024, 7);
+    const upload = await CreatePrivateUploadUrl({
+      filename: "large.bin",
+      size: content.length,
+      mimetype: "application/octet-stream",
+    });
+    const response = await fetch(upload.uploadUrl, {
+      method: "PUT",
+      headers: upload.headers,
+      body: content,
+    });
+    assert.equal(response.status, 200);
+    const destinationKey = `large-${Date.now()}.bin`;
+    await PrepareAttachment(upload.resourceKey, destinationKey);
+    const read = await CreatePrivateReadUrl(destinationKey, 60);
+    assert.equal(
+      (await (await fetch(read.url)).arrayBuffer()).byteLength,
+      content.length,
+    );
+  });
+
+  it("returns 404 for an unpublished public attachment", async () => {
+    const url = `${getConfig().baseUrl}/file-storage-attachments/public/default/not-published.txt`;
+    assert.equal((await fetch(url)).status, 404);
   });
 
   it("rejects unknown attachment storage and escaped keys", async () => {

@@ -1,3 +1,5 @@
+import { promises as fs } from "node:fs";
+import { relative, sep } from "node:path";
 import { Logging } from "@antelopejs/interface-core/logging";
 import { ImplementInterface } from "@antelopejs/interface-core";
 
@@ -26,6 +28,7 @@ const MillisecondsPerSecond = 1000;
 const CleanupErrorPrefix = "[file-storage-local] Cleanup error:";
 
 let cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
+let attachmentManagers: AttachmentManager[] = [];
 
 function applyDefaults(config: ConstructConfig): Config {
   const resolved: Config = {
@@ -50,6 +53,11 @@ async function runCleanup(
   manager: TokenManager,
 ): Promise<void> {
   await manager.cleanupExpiredTokens();
+  await Promise.all(
+    attachmentManagers.map((attachmentManager) =>
+      attachmentManager.cleanupExpiredTemporary(),
+    ),
+  );
   const stagingExpiration = config.stagingExpiration;
   if (stagingExpiration !== undefined && stagingExpiration > 0) {
     await manager.cleanupExpiredStagingFiles(
@@ -81,6 +89,27 @@ async function initializeStorage(entry: StorageEntry): Promise<void> {
     attachmentManager.initialize(entry.config.storagePath),
   ]);
   registerStorageManagers(entry.storage, manager, attachmentManager);
+  attachmentManagers.push(attachmentManager);
+}
+
+async function assertDistinctRoots(entries: StorageEntry[]): Promise<void> {
+  const roots = entries.flatMap((entry) => {
+    const attachmentPath =
+      entry.config.attachmentStoragePath ??
+      `${entry.config.storagePath}-attachments`;
+    return [entry.config.storagePath, `${attachmentPath}/attachments`];
+  });
+  const canonical = await Promise.all(roots.map((root) => fs.realpath(root)));
+  canonical.forEach((root, index) => {
+    canonical.slice(index + 1).forEach((candidate) => {
+      const relation = relative(root, candidate);
+      const reverse = relative(candidate, root);
+      const overlaps = (value: string) =>
+        !value || (!value.startsWith(`..${sep}`) && value !== "..");
+      if (overlaps(relation) || overlaps(reverse))
+        throw new Error("Configured storage roots must not overlap");
+    });
+  });
 }
 
 function startCleanupInterval(config: Config, manager: TokenManager): void {
@@ -93,9 +122,14 @@ function startCleanupInterval(config: Config, manager: TokenManager): void {
 
 export async function construct(config: ConstructConfig): Promise<void> {
   const resolved = applyDefaults(config);
+  if (resolved.storages?.default)
+    throw new Error("Named storage 'default' is reserved");
   const manager = new TokenManager(resolved.storagePath);
   setModuleState(resolved, manager);
-  await Promise.all(storageEntries(resolved).map(initializeStorage));
+  attachmentManagers = [];
+  const entries = storageEntries(resolved);
+  await Promise.all(entries.map(initializeStorage));
+  await assertDistinctRoots(entries);
   const [
     fileStorageInterface,
     fileStorageImplementation,
@@ -129,4 +163,5 @@ export function stop(): void {
 export function destroy(): void {
   stop();
   clearModuleState();
+  attachmentManagers = [];
 }
