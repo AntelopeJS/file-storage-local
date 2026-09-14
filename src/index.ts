@@ -4,13 +4,12 @@ import { Logging } from "@antelopejs/interface-core/logging";
 import { ImplementInterface } from "@antelopejs/interface-core";
 
 import { TokenManager } from "./storage/token-manager";
-import { AttachmentManager } from "./storage/attachment-manager";
 import {
   clearModuleState,
   type Config,
   getConfig,
   getTokenManager,
-  registerStorageManagers,
+  registerStorageManager,
   setModuleState,
 } from "./module-config";
 import "./routes";
@@ -28,7 +27,6 @@ const MillisecondsPerSecond = 1000;
 const CleanupErrorPrefix = "[file-storage-local] Cleanup error:";
 
 let cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
-let attachmentManagers: AttachmentManager[] = [];
 
 function applyDefaults(config: ConstructConfig): Config {
   const resolved: Config = {
@@ -53,11 +51,6 @@ async function runCleanup(
   manager: TokenManager,
 ): Promise<void> {
   await manager.cleanupExpiredTokens();
-  await Promise.all(
-    attachmentManagers.map((attachmentManager) =>
-      attachmentManager.cleanupExpiredTemporary(),
-    ),
-  );
   const stagingExpiration = config.stagingExpiration;
   if (stagingExpiration !== undefined && stagingExpiration > 0) {
     await manager.cleanupExpiredStagingFiles(
@@ -80,25 +73,12 @@ function storageEntries(config: Config): StorageEntry[] {
 
 async function initializeStorage(entry: StorageEntry): Promise<void> {
   const manager = new TokenManager(entry.config.storagePath);
-  const attachmentPath =
-    entry.config.attachmentStoragePath ??
-    `${entry.config.storagePath}-attachments`;
-  const attachmentManager = new AttachmentManager(attachmentPath);
-  await Promise.all([
-    manager.initialize(),
-    attachmentManager.initialize(entry.config.storagePath),
-  ]);
-  registerStorageManagers(entry.storage, manager, attachmentManager);
-  attachmentManagers.push(attachmentManager);
+  await manager.initialize();
+  registerStorageManager(entry.storage, manager);
 }
 
 async function assertDistinctRoots(entries: StorageEntry[]): Promise<void> {
-  const roots = entries.flatMap((entry) => {
-    const attachmentPath =
-      entry.config.attachmentStoragePath ??
-      `${entry.config.storagePath}-attachments`;
-    return [entry.config.storagePath, `${attachmentPath}/attachments`];
-  });
+  const roots = entries.map((entry) => entry.config.storagePath);
   const canonical = await Promise.all(roots.map((root) => fs.realpath(root)));
   canonical.forEach((root, index) => {
     canonical.slice(index + 1).forEach((candidate) => {
@@ -126,23 +106,14 @@ export async function construct(config: ConstructConfig): Promise<void> {
     throw new Error("Named storage 'default' is reserved");
   const manager = new TokenManager(resolved.storagePath);
   setModuleState(resolved, manager);
-  attachmentManagers = [];
   const entries = storageEntries(resolved);
   await Promise.all(entries.map(initializeStorage));
   await assertDistinctRoots(entries);
-  const [
-    fileStorageInterface,
-    fileStorageImplementation,
-    attachmentInterface,
-    attachmentImplementation,
-  ] = await Promise.all([
+  const [fileStorageInterface, fileStorageImplementation] = await Promise.all([
     import("@antelopejs/interface-file-storage"),
     import("./implementations/file-storage"),
-    import("@antelopejs/interface-file-storage/attachments"),
-    import("./implementations/attachments"),
   ]);
   void ImplementInterface(fileStorageInterface, fileStorageImplementation);
-  void ImplementInterface(attachmentInterface, attachmentImplementation);
 }
 
 export function start(): void {
@@ -163,5 +134,4 @@ export function stop(): void {
 export function destroy(): void {
   stop();
   clearModuleState();
-  attachmentManagers = [];
 }

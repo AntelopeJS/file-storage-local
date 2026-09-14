@@ -1,11 +1,9 @@
 import type { Visibility } from "@antelopejs/interface-file-storage";
 
 import type { TokenManager } from "./storage/token-manager";
-import type { AttachmentManager } from "./storage/attachment-manager";
 
 export interface StorageConfig {
   storagePath: string;
-  attachmentStoragePath?: string;
   baseUrl: string;
   defaultVisibility: Visibility;
   uploadTokenExpiration: number;
@@ -26,7 +24,6 @@ export interface Config extends StorageConfig {
 let moduleConfig: Config | null = null;
 let tokenManager: TokenManager | null = null;
 const tokenManagers = new Map<string, TokenManager>();
-const attachmentManagers = new Map<string, AttachmentManager>();
 const DefaultStorage = "default";
 
 export function setModuleState(config: Config, manager: TokenManager): void {
@@ -34,21 +31,18 @@ export function setModuleState(config: Config, manager: TokenManager): void {
   tokenManager = manager;
 }
 
-export function registerStorageManagers(
+export function registerStorageManager(
   storage: string | undefined,
   manager: TokenManager,
-  attachmentManager: AttachmentManager,
 ): void {
   const key = storage ?? DefaultStorage;
   tokenManagers.set(key, manager);
-  attachmentManagers.set(key, attachmentManager);
 }
 
 export function clearModuleState(): void {
   moduleConfig = null;
   tokenManager = null;
   tokenManagers.clear();
-  attachmentManagers.clear();
 }
 
 export function getConfig(): Config {
@@ -78,13 +72,4 @@ export function getTokenManager(storage?: string): TokenManager {
     throw new Error("Token manager is not initialized");
   }
   return tokenManager;
-}
-
-export function getAttachmentManager(storage?: string): AttachmentManager {
-  const manager = attachmentManagers.get(storage ?? DefaultStorage);
-  if (!manager)
-    throw new Error(
-      `Storage '${storage ?? DefaultStorage}' not found in configuration`,
-    );
-  return manager;
 }

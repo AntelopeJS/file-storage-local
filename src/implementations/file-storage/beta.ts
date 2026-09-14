@@ -32,8 +32,19 @@ function buildUploadUrl(baseUrl: string, token: string): string {
   return `${normalizeBaseUrl(baseUrl)}${FileUploadPath}/${token}`;
 }
 
-function buildFilesUrl(baseUrl: string, resourceKey: string): string {
-  return `${normalizeBaseUrl(baseUrl)}${FileReadPath}/${encodeURIComponent(resourceKey)}`;
+function appendStorage(url: string, storage?: string): string {
+  return storage ? `${url}?storage=${encodeURIComponent(storage)}` : url;
+}
+
+function buildFilesUrl(
+  baseUrl: string,
+  resourceKey: string,
+  storage?: string,
+): string {
+  return appendStorage(
+    `${normalizeBaseUrl(baseUrl)}${FileReadPath}/${encodeURIComponent(resourceKey)}`,
+    storage,
+  );
 }
 
 function buildMetadata(request: UploadRequest): Record<string, string> {
@@ -108,8 +119,12 @@ export namespace internal {
       expiresAt,
       metadata,
       tokenPath,
+      request.visibility,
     );
-    const uploadUrl = buildUploadUrl(config.baseUrl, uploadToken.token);
+    const uploadUrl = appendStorage(
+      buildUploadUrl(config.baseUrl, uploadToken.token),
+      storage,
+    );
     return {
       uploadUrl,
       resourceKey,
@@ -137,8 +152,9 @@ export namespace internal {
     if (!exists) {
       throw new FileNotFoundError(resourceKey);
     }
-    const filesUrl = buildFilesUrl(config.baseUrl, resourceKey);
-    if (config.defaultVisibility === "public") {
+    const filesUrl = buildFilesUrl(config.baseUrl, resourceKey, storage);
+    const visibility = metadata.visibility ?? config.defaultVisibility;
+    if (visibility === "public") {
       return {
         url: filesUrl,
       };
@@ -150,7 +166,7 @@ export namespace internal {
       expiresAt,
     );
     return {
-      url: `${filesUrl}?token=${readToken.token}`,
+      url: `${filesUrl}${storage ? "&" : "?"}token=${readToken.token}`,
       expiresAt,
     };
   };

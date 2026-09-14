@@ -13,10 +13,8 @@ import {
   WriteStream,
 } from "@antelopejs/interface-api";
 
-import { getConfig, getTokenManager } from "../module-config";
+import { getStorageConfig, getTokenManager } from "../module-config";
 import type { StoredFileMetadata, UploadToken } from "../storage/token-manager";
-
-export * from "./attachments";
 
 function buildStoredFileMetadata(uploadToken: UploadToken): StoredFileMetadata {
   const metadata: StoredFileMetadata = {
@@ -30,6 +28,9 @@ function buildStoredFileMetadata(uploadToken: UploadToken): StoredFileMetadata {
   }
   if (uploadToken.metadata) {
     metadata.metadata = uploadToken.metadata;
+  }
+  if (uploadToken.visibility) {
+    metadata.visibility = uploadToken.visibility;
   }
   return metadata;
 }
@@ -56,10 +57,11 @@ export class FileStorageController extends Controller("file-storage") {
     @Parameter("token", "param") token: string,
     @Parameter("content-type", "header") contentType: string | undefined,
     @Parameter("content-length", "header") contentLength: string | undefined,
+    @Parameter("storage", "query") storage: string | undefined,
     @RawBody() body: Buffer,
     @Context() _context: RequestContext,
   ): Promise<HTTPResult> {
-    const tokenManager = getTokenManager();
+    const tokenManager = getTokenManager(storage);
 
     // Get upload token
     const uploadToken = await tokenManager.getUploadToken(token);
@@ -142,10 +144,11 @@ export class FileStorageController extends Controller("file-storage") {
   async handleDownload(
     @Parameter("token", "query") token: string | undefined,
     @Parameter("resourceKey", "param") resourceKey: string,
+    @Parameter("storage", "query") storage: string | undefined,
     @WriteStream() stream: PassThrough,
     @Context() context: RequestContext,
   ): Promise<void> {
-    const tokenManager = getTokenManager();
+    const tokenManager = getTokenManager(storage);
 
     if (!resourceKey) {
       context.response.setStatus(400);
@@ -176,8 +179,9 @@ export class FileStorageController extends Controller("file-storage") {
     }
 
     // Check visibility
-    const config = getConfig();
-    if (config.defaultVisibility === "private") {
+    const config = getStorageConfig(storage);
+    const visibility = metadata.visibility ?? config.defaultVisibility;
+    if (visibility === "private") {
       // Private file: requires valid read token
       if (!token) {
         context.response.setStatus(403);
@@ -230,7 +234,7 @@ export class FileStorageController extends Controller("file-storage") {
       );
       context.response.addHeader(
         "Cache-Control",
-        config.defaultVisibility === "public"
+        visibility === "public"
           ? "public, max-age=31536000"
           : "private, no-cache",
       );

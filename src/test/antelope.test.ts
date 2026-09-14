@@ -13,6 +13,16 @@ export default defineConfig({
         uploadTokenExpiration: 3600,
         readTokenExpiration: 300,
         cleanupInterval: 300,
+        storages: {
+          media: {
+            storagePath: ".antelope/cache/storage-media",
+            baseUrl: "http://127.0.0.1:3000",
+            defaultVisibility: "private",
+            uploadTokenExpiration: 3600,
+            readTokenExpiration: 300,
+            cleanupInterval: 300,
+          },
+        },
       },
     },
     api: {

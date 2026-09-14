@@ -5,6 +5,7 @@ import {
   isStagedKey,
   STAGING_PREFIX,
   toStagedKey,
+  type Visibility,
 } from "@antelopejs/interface-file-storage";
 
 const FilesDirectory = "files";
@@ -25,6 +26,7 @@ export interface UploadToken {
   size: number;
   expiresAt: number;
   metadata?: Record<string, string>;
+  visibility?: Visibility;
 }
 
 export interface ReadToken {
@@ -40,6 +42,7 @@ export interface StoredFileMetadata {
   size: number;
   lastModified: number;
   metadata?: Record<string, string>;
+  visibility?: Visibility;
 }
 
 export interface TokenCleanupResult {
@@ -102,6 +105,7 @@ export class TokenManager {
     expiresAt: number,
     metadata?: Record<string, string>,
     path?: string,
+    visibility?: Visibility,
   ): Promise<UploadToken> {
     const data: UploadToken = {
       token: this.generateToken(),
@@ -115,6 +119,9 @@ export class TokenManager {
     }
     if (path) {
       data.path = path;
+    }
+    if (visibility) {
+      data.visibility = visibility;
     }
     await this.writeJsonFile(this.getUploadTokenPath(data.token), data);
     return data;
@@ -229,6 +236,9 @@ export class TokenManager {
     };
     if (sourceMetadata.metadata) {
       destMetadata.metadata = sourceMetadata.metadata;
+    }
+    if (sourceMetadata.visibility) {
+      destMetadata.visibility = sourceMetadata.visibility;
     }
     await this.saveFileMetadata(destMetadata);
     await this.deleteFileMetadata(sourceKey);

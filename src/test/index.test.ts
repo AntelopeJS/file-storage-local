@@ -1,14 +1,6 @@
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
 import {
-  CreatePrivateReadUrl,
-  CreatePrivateUploadUrl,
-  DeleteAttachment,
-  GetPrivateFileMetadata,
-  PrepareAttachment,
-  PublishAttachment,
-} from "@antelopejs/interface-file-storage/attachments";
-import {
   CreateReadUrl,
   CreateUploadUrl,
   DeleteFile,
@@ -197,6 +189,98 @@ describe("file-storage interface", () => {
     }
   });
 
+  it("enforces explicit visibility independently of the storage default", async () => {
+    const content = "visibility protected";
+    const upload = await CreateUploadUrl({
+      filename: "protected.txt",
+      size: content.length,
+      mimetype: "text/plain",
+      visibility: "private",
+      metadata: { visibility: "public", source: "cms" },
+      staging: true,
+    });
+    const stored = await fetch(upload.uploadUrl, {
+      method: "PUT",
+      headers: { ...upload.headers, "x-visibility": "public" },
+      body: content,
+    });
+    assert.equal(stored.status, 200);
+    const config = getConfig();
+    const previousVisibility = config.defaultVisibility;
+    config.defaultVisibility = "public";
+    try {
+      assert.ok((await CreateReadUrl(upload.resourceKey, 30)).expiresAt);
+      assert.equal(
+        (
+          await fetch(
+            `${config.baseUrl}/file-storage/files/${encodeURIComponent(upload.resourceKey)}`,
+          )
+        ).status,
+        403,
+      );
+      const promoted = await PromoteFile(upload.resourceKey);
+      assert.ok((await CreateReadUrl(promoted.resourceKey, 30)).expiresAt);
+      assert.deepEqual((await GetFileMetadata(promoted.resourceKey)).metadata, {
+        filename: "protected.txt",
+        visibility: "public",
+        source: "cms",
+      });
+    } finally {
+      config.defaultVisibility = previousVisibility;
+    }
+  });
+
+  it("keeps an explicit public file public after promotion", async () => {
+    const content = "public attachment";
+    const upload = await CreateUploadUrl({
+      filename: "public.txt",
+      size: content.length,
+      mimetype: "text/plain",
+      visibility: "public",
+      staging: true,
+    });
+    await fetch(upload.uploadUrl, {
+      method: "PUT",
+      headers: upload.headers,
+      body: content,
+    });
+    const promoted = await PromoteFile(upload.resourceKey);
+    const read = await CreateReadUrl(promoted.resourceKey, 30);
+    assert.equal(read.expiresAt, undefined);
+    assert.equal(await (await fetch(read.url)).text(), content);
+    await DeleteFile(promoted.resourceKey);
+    assert.equal(await FileExists(promoted.resourceKey), false);
+  });
+
+  it("isolates uploads and reads in named storage", async () => {
+    const content = "named storage";
+    const upload = await CreateUploadUrl(
+      { filename: "named.txt", size: content.length, mimetype: "text/plain" },
+      undefined,
+      "media",
+    );
+    assert.equal(
+      new URL(upload.uploadUrl).searchParams.get("storage"),
+      "media",
+    );
+    assert.equal(
+      (
+        await fetch(upload.uploadUrl, {
+          method: "PUT",
+          headers: upload.headers,
+          body: content,
+        })
+      ).status,
+      200,
+    );
+    assert.equal(await FileExists(upload.resourceKey), false);
+    assert.equal(await FileExists(upload.resourceKey, "media"), true);
+    const read = await CreateReadUrl(upload.resourceKey, 30, "media");
+    assert.equal(new URL(read.url).searchParams.get("storage"), "media");
+    assert.equal(await (await fetch(read.url)).text(), content);
+    await DeleteFile(upload.resourceKey, "media");
+  });
+
   it("returns true when file exists", async () => {
     const exists = await FileExists(ExistingResourceKey);
     assert.equal(exists, true);
@@ -338,90 +422,6 @@ describe("file-storage interface", () => {
       true,
     );
     assert.equal(await FileExists(ExistingResourceKey), true);
-  });
-
-  it("keeps attachment bytes private until immutable publication", async () => {
-    const content = "private attachment bytes";
-    const upload = await CreatePrivateUploadUrl({
-      filename: "evidence.txt",
-      size: content.length,
-      mimetype: "text/plain",
-    });
-    const response = await fetch(upload.uploadUrl, {
-      method: "PUT",
-      headers: upload.headers,
-      body: content,
-    });
-    assert.equal(response.status, 200);
-    assert.equal(
-      (
-        await fetch(upload.uploadUrl, {
-          method: "PUT",
-          headers: upload.headers,
-          body: content,
-        })
-      ).status,
-      403,
-    );
-
-    const destinationKey = `snapshot-${Date.now()}.txt`;
-    await Promise.all([
-      PrepareAttachment(upload.resourceKey, destinationKey),
-      PrepareAttachment(upload.resourceKey, destinationKey),
-    ]);
-    const metadata = await GetPrivateFileMetadata(destinationKey);
-    assert.equal(metadata.filename, "evidence.txt");
-    assert.equal(metadata.size, content.length);
-    assert.equal(metadata.mimetype, "text/plain");
-
-    const read = await CreatePrivateReadUrl(destinationKey, 600);
-    assert.ok((read.expiresAt ?? 0) <= Date.now() + 60_000);
-    assert.equal(await (await fetch(read.url)).text(), content);
-    const published = await PublishAttachment(destinationKey);
-    assert.equal(published.expiresAt, undefined);
-    assert.equal(await (await fetch(published.url)).text(), content);
-    await DeleteAttachment(destinationKey);
-    assert.equal((await fetch(read.url)).status, 404);
-    await assert.rejects(() => GetPrivateFileMetadata(destinationKey));
-  });
-
-  it("accepts attachment uploads larger than one MiB", async () => {
-    const content = Buffer.alloc(2 * 1024 * 1024, 7);
-    const upload = await CreatePrivateUploadUrl({
-      filename: "large.bin",
-      size: content.length,
-      mimetype: "application/octet-stream",
-    });
-    const response = await fetch(upload.uploadUrl, {
-      method: "PUT",
-      headers: upload.headers,
-      body: content,
-    });
-    assert.equal(response.status, 200);
-    const destinationKey = `large-${Date.now()}.bin`;
-    await PrepareAttachment(upload.resourceKey, destinationKey);
-    const read = await CreatePrivateReadUrl(destinationKey, 60);
-    assert.equal(
-      (await (await fetch(read.url)).arrayBuffer()).byteLength,
-      content.length,
-    );
-  });
-
-  it("returns 404 for an unpublished public attachment", async () => {
-    const url = `${getConfig().baseUrl}/file-storage-attachments/public/default/not-published.txt`;
-    assert.equal((await fetch(url)).status, 404);
-  });
-
-  it("rejects unknown attachment storage and escaped keys", async () => {
-    await assert.rejects(() =>
-      CreatePrivateUploadUrl(
-        { filename: "x", size: 1, mimetype: "text/plain" },
-        undefined,
-        "missing",
-      ),
-    );
-    await assert.rejects(() => PrepareAttachment("../source", "destination"));
-    await assert.rejects(() => PrepareAttachment("source", "../destination"));
   });
 });
 
