@@ -1,3 +1,5 @@
+import { promises as fs } from "node:fs";
+import { relative, sep } from "node:path";
 import { Logging } from "@antelopejs/interface-core/logging";
 import { ImplementInterface } from "@antelopejs/interface-core";
 
@@ -7,6 +9,7 @@ import {
   type Config,
   getConfig,
   getTokenManager,
+  registerStorageManager,
   setModuleState,
 } from "./module-config";
 import "./routes";
@@ -27,6 +30,7 @@ let cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
 
 function applyDefaults(config: ConstructConfig): Config {
   const resolved: Config = {
+    ...config,
     storagePath: config.storagePath,
     baseUrl: config.baseUrl,
     defaultVisibility: config.defaultVisibility ?? DefaultVisibility,
@@ -55,6 +59,39 @@ async function runCleanup(
   }
 }
 
+interface StorageEntry {
+  storage?: string;
+  config: Config;
+}
+
+function storageEntries(config: Config): StorageEntry[] {
+  const named = Object.entries(config.storages ?? {}).map(
+    ([storage, value]) => ({ storage, config: applyDefaults(value) }),
+  );
+  return [{ config }, ...named];
+}
+
+async function initializeStorage(entry: StorageEntry): Promise<void> {
+  const manager = new TokenManager(entry.config.storagePath);
+  await manager.initialize();
+  registerStorageManager(entry.storage, manager);
+}
+
+async function assertDistinctRoots(entries: StorageEntry[]): Promise<void> {
+  const roots = entries.map((entry) => entry.config.storagePath);
+  const canonical = await Promise.all(roots.map((root) => fs.realpath(root)));
+  canonical.forEach((root, index) => {
+    canonical.slice(index + 1).forEach((candidate) => {
+      const relation = relative(root, candidate);
+      const reverse = relative(candidate, root);
+      const overlaps = (value: string) =>
+        !value || (!value.startsWith(`..${sep}`) && value !== "..");
+      if (overlaps(relation) || overlaps(reverse))
+        throw new Error("Configured storage roots must not overlap");
+    });
+  });
+}
+
 function startCleanupInterval(config: Config, manager: TokenManager): void {
   cleanupIntervalId = setInterval(() => {
     void runCleanup(config, manager).catch((error: unknown) => {
@@ -65,9 +102,13 @@ function startCleanupInterval(config: Config, manager: TokenManager): void {
 
 export async function construct(config: ConstructConfig): Promise<void> {
   const resolved = applyDefaults(config);
+  if (resolved.storages?.default)
+    throw new Error("Named storage 'default' is reserved");
   const manager = new TokenManager(resolved.storagePath);
   setModuleState(resolved, manager);
-  await manager.initialize();
+  const entries = storageEntries(resolved);
+  await Promise.all(entries.map(initializeStorage));
+  await assertDistinctRoots(entries);
   const [fileStorageInterface, fileStorageImplementation] = await Promise.all([
     import("@antelopejs/interface-file-storage"),
     import("./implementations/file-storage"),

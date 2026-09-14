@@ -10,7 +10,6 @@ import {
   MoveFile,
   PromoteFile,
   STAGING_PREFIX,
-  UploadValidationError,
 } from "@antelopejs/interface-file-storage";
 
 import { getConfig, getTokenManager } from "../index";
@@ -88,42 +87,6 @@ describe("file-storage interface", () => {
     assert.ok(response.expiresAt > Date.now());
   });
 
-  it("validates upload max size constraints", async () => {
-    await assert.rejects(
-      () =>
-        CreateUploadUrl(
-          {
-            filename: "oversized.txt",
-            size: 20,
-            mimetype: "text/plain",
-          },
-          { maxSize: 10 },
-        ),
-      (error: unknown) =>
-        error instanceof UploadValidationError &&
-        error.code === "SIZE_EXCEEDED" &&
-        error.message.includes("20"),
-    );
-  });
-
-  it("validates upload mimetype constraints", async () => {
-    await assert.rejects(
-      () =>
-        CreateUploadUrl(
-          {
-            filename: "document.pdf",
-            size: 10,
-            mimetype: "application/pdf",
-          },
-          { allowedMimetypes: ["image/png", "image/jpeg"] },
-        ),
-      (error: unknown) =>
-        error instanceof UploadValidationError &&
-        error.code === "MIMETYPE_NOT_ALLOWED" &&
-        error.message.includes("pdf"),
-    );
-  });
-
   it("returns presigned read URL and expiration for private files", async () => {
     const response = await CreateReadUrl(ExistingResourceKey, 120);
     const expectedPrefix = `${getConfig().baseUrl}/file-storage/files/${encodeURIComponent(ExistingResourceKey)}?token=`;
@@ -187,6 +150,76 @@ describe("file-storage interface", () => {
     } finally {
       config.defaultVisibility = previousVisibility;
     }
+  });
+
+  it("enforces explicit visibility independently of the storage default", async () => {
+    const content = "visibility protected";
+    const upload = await CreateUploadUrl({
+      filename: "protected.txt",
+      size: content.length,
+      mimetype: "text/plain",
+      visibility: "private",
+      metadata: { visibility: "public", source: "cms" },
+      staging: true,
+    });
+    const stored = await fetch(upload.uploadUrl, {
+      method: "PUT",
+      headers: { ...upload.headers, "x-visibility": "public" },
+      body: content,
+    });
+    assert.equal(stored.status, 200);
+    const config = getConfig();
+    const previousVisibility = config.defaultVisibility;
+    config.defaultVisibility = "public";
+    try {
+      assert.ok((await CreateReadUrl(upload.resourceKey, 30)).expiresAt);
+      assert.equal(
+        (
+          await fetch(
+            `${config.baseUrl}/file-storage/files/${encodeURIComponent(upload.resourceKey)}`,
+          )
+        ).status,
+        403,
+      );
+      const promoted = await PromoteFile(upload.resourceKey);
+      assert.ok((await CreateReadUrl(promoted.resourceKey, 30)).expiresAt);
+      assert.deepEqual((await GetFileMetadata(promoted.resourceKey)).metadata, {
+        filename: "protected.txt",
+        visibility: "public",
+        source: "cms",
+      });
+    } finally {
+      config.defaultVisibility = previousVisibility;
+    }
+  });
+
+  it("isolates uploads and reads in named storage", async () => {
+    const content = "named storage";
+    const upload = await CreateUploadUrl(
+      { filename: "named.txt", size: content.length, mimetype: "text/plain" },
+      undefined,
+      "media",
+    );
+    assert.equal(
+      new URL(upload.uploadUrl).searchParams.get("storage"),
+      "media",
+    );
+    assert.equal(
+      (
+        await fetch(upload.uploadUrl, {
+          method: "PUT",
+          headers: upload.headers,
+          body: content,
+        })
+      ).status,
+      200,
+    );
+    assert.equal(await FileExists(upload.resourceKey), false);
+    assert.equal(await FileExists(upload.resourceKey, "media"), true);
+    const read = await CreateReadUrl(upload.resourceKey, 30, "media");
+    assert.equal(new URL(read.url).searchParams.get("storage"), "media");
+    assert.equal(await (await fetch(read.url)).text(), content);
+    await DeleteFile(upload.resourceKey, "media");
   });
 
   it("returns true when file exists", async () => {
@@ -258,47 +291,6 @@ describe("file-storage interface", () => {
     });
 
     assert.equal(response.resourceKey.startsWith(STAGING_PREFIX), false);
-  });
-
-  it("promotes a staged file and returns the clean key", async () => {
-    await seedStagedFile(StagedResourceKey);
-
-    const result = await PromoteFile(StagedResourceKey);
-
-    assert.equal(result.resourceKey, PromotedResourceKey);
-    assert.equal(await FileExists(PromotedResourceKey), true);
-    assert.equal(await FileExists(StagedResourceKey), false);
-
-    const metadata = await GetFileMetadata(PromotedResourceKey);
-    assert.equal(metadata.resourceKey, PromotedResourceKey);
-    assert.equal(metadata.size, StagedFileContent.length);
-  });
-
-  it("is a no-op when promoting a non-staged key", async () => {
-    const result = await PromoteFile(ExistingResourceKey);
-
-    assert.equal(result.resourceKey, ExistingResourceKey);
-    assert.equal(await FileExists(ExistingResourceKey), true);
-  });
-
-  it("throws when promoting a staged key that no longer exists", async () => {
-    await assert.rejects(
-      () => PromoteFile(`${STAGING_PREFIX}uploads/ghost.txt`),
-      (error: unknown) => error instanceof FileNotFoundError,
-    );
-  });
-
-  it("is safe to promote twice", async () => {
-    await seedStagedFile(StagedResourceKey);
-
-    const first = await PromoteFile(StagedResourceKey);
-    const second = await PromoteFile(StagedResourceKey);
-    const third = await PromoteFile(PromotedResourceKey);
-
-    assert.equal(first.resourceKey, PromotedResourceKey);
-    assert.equal(second.resourceKey, PromotedResourceKey);
-    assert.equal(third.resourceKey, PromotedResourceKey);
-    assert.equal(await FileExists(PromotedResourceKey), true);
   });
 
   it("moves a file to a new key with MoveFile", async () => {

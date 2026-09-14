@@ -1,3 +1,5 @@
+import { access } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { defineConfig } from "@antelopejs/interface-core/config";
 
 export default defineConfig({
@@ -13,6 +15,16 @@ export default defineConfig({
         uploadTokenExpiration: 3600,
         readTokenExpiration: 300,
         cleanupInterval: 300,
+        storages: {
+          media: {
+            storagePath: ".antelope/cache/storage-media",
+            baseUrl: "http://127.0.0.1:3000",
+            defaultVisibility: "private",
+            uploadTokenExpiration: 3600,
+            readTokenExpiration: 300,
+            cleanupInterval: 300,
+          },
+        },
       },
     },
     api: {
@@ -29,5 +41,10 @@ export default defineConfig({
   },
   test: {
     folder: "dist/test",
+    async setup() {
+      const entry = require.resolve("@antelopejs/interface-file-storage");
+      await access(join(dirname(entry), "tests", "file-storage.test.js"));
+      return undefined;
+    },
   },
 });

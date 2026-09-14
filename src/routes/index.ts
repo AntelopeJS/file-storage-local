@@ -1,6 +1,10 @@
+import { promises as fs } from "node:fs";
 import type { PassThrough } from "node:stream";
-import { createReadStream, promises as fs } from "node:fs";
 import { Logging } from "@antelopejs/interface-core/logging";
+import {
+  FileConflictError,
+  FileNotFoundError,
+} from "@antelopejs/interface-file-storage";
 import {
   Context,
   Controller,
@@ -13,24 +17,7 @@ import {
   WriteStream,
 } from "@antelopejs/interface-api";
 
-import { getConfig, getTokenManager } from "../module-config";
-import type { StoredFileMetadata, UploadToken } from "../storage/token-manager";
-
-function buildStoredFileMetadata(uploadToken: UploadToken): StoredFileMetadata {
-  const metadata: StoredFileMetadata = {
-    resourceKey: uploadToken.resourceKey,
-    mimetype: uploadToken.mimetype,
-    size: uploadToken.size,
-    lastModified: Date.now(),
-  };
-  if (uploadToken.path) {
-    metadata.path = uploadToken.path;
-  }
-  if (uploadToken.metadata) {
-    metadata.metadata = uploadToken.metadata;
-  }
-  return metadata;
-}
+import { getStorageConfig, getTokenManager } from "../module-config";
 
 /**
  * File Storage HTTP Controller
@@ -54,10 +41,11 @@ export class FileStorageController extends Controller("file-storage") {
     @Parameter("token", "param") token: string,
     @Parameter("content-type", "header") contentType: string | undefined,
     @Parameter("content-length", "header") contentLength: string | undefined,
+    @Parameter("storage", "query") storage: string | undefined,
     @RawBody() body: Buffer,
     @Context() _context: RequestContext,
   ): Promise<HTTPResult> {
-    const tokenManager = getTokenManager();
+    const tokenManager = getTokenManager(storage);
 
     // Get upload token
     const uploadToken = await tokenManager.getUploadToken(token);
@@ -104,26 +92,17 @@ export class FileStorageController extends Controller("file-storage") {
     }
 
     try {
-      await tokenManager.ensureFileDirectory(
-        uploadToken.resourceKey,
-        uploadToken.path,
-      );
-
-      const filePath = tokenManager.getFilePath(
-        uploadToken.resourceKey,
-        uploadToken.path,
-      );
-      await fs.writeFile(filePath, body);
-
-      await tokenManager.saveFileMetadata(buildStoredFileMetadata(uploadToken));
-
-      await tokenManager.deleteUploadToken(token);
+      await tokenManager.saveUpload(token, body);
 
       return new HTTPResult(200, {
         success: true,
         resourceKey: uploadToken.resourceKey,
       });
     } catch (error: unknown) {
+      if (error instanceof FileConflictError)
+        return new HTTPResult(409, { error: error.message });
+      if (error instanceof FileNotFoundError)
+        return new HTTPResult(403, { error: "Token expired" });
       Logging.Error("File upload error:", error);
       return new HTTPResult(500, { error: "Failed to save file" });
     }
@@ -140,10 +119,11 @@ export class FileStorageController extends Controller("file-storage") {
   async handleDownload(
     @Parameter("token", "query") token: string | undefined,
     @Parameter("resourceKey", "param") resourceKey: string,
+    @Parameter("storage", "query") storage: string | undefined,
     @WriteStream() stream: PassThrough,
     @Context() context: RequestContext,
   ): Promise<void> {
-    const tokenManager = getTokenManager();
+    const tokenManager = getTokenManager(storage);
 
     if (!resourceKey) {
       context.response.setStatus(400);
@@ -174,8 +154,9 @@ export class FileStorageController extends Controller("file-storage") {
     }
 
     // Check visibility
-    const config = getConfig();
-    if (config.defaultVisibility === "private") {
+    const config = getStorageConfig(storage);
+    const visibility = metadata.visibility ?? config.defaultVisibility;
+    if (visibility === "private") {
       // Private file: requires valid read token
       if (!token) {
         context.response.setStatus(403);
@@ -228,7 +209,7 @@ export class FileStorageController extends Controller("file-storage") {
       );
       context.response.addHeader(
         "Cache-Control",
-        config.defaultVisibility === "public"
+        visibility === "public"
           ? "public, max-age=31536000"
           : "private, no-cache",
       );
@@ -241,7 +222,8 @@ export class FileStorageController extends Controller("file-storage") {
 
       // Stream the file instead of buffering it in memory so peak memory
       // stays bounded regardless of file size or concurrent downloads.
-      const fileStream = createReadStream(filePath);
+      const handle = await fs.open(filePath, "r");
+      const fileStream = handle.createReadStream();
       const abortDownload = (error: Error) => {
         Logging.Error("File download error:", error);
         // The 200 status is committed once streaming starts, so abort the
