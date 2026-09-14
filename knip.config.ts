@@ -8,6 +8,7 @@ export default antelopeKnipConfig({
     // as a side effect of `import "./routes"`.
     "src/implementations/**/*.ts",
     "src/routes/**/*.ts",
+    "src/test/seal-process-worker.ts",
   ],
   // `ajs` comes from @antelopejs/core, which CI installs globally rather than
   // pulling the whole CLI into every module's dependency tree.

@@ -1,6 +1,7 @@
 import {
   type FileMetadata,
   FileNotFoundError,
+  type SealFileRequest,
   type PresignedReadResponse,
   type PresignedUploadResponse,
   type UploadConstraints,
@@ -84,7 +85,33 @@ function toFileMetadata(metadata: StoredMetadataSnapshot): FileMetadata {
   return fileMetadata;
 }
 
+function copySealRequest(request: SealFileRequest): SealFileRequest {
+  return {
+    admissionId: request?.admissionId,
+    destinationKey: request?.destinationKey,
+    source: {
+      storageId: request?.source?.storageId,
+      resourceKey: request?.source?.resourceKey,
+      generation: request?.source?.generation,
+    },
+  };
+}
+
 export namespace internal {
+  export const getFileSnapshot = (resourceKey: string, _storage?: string) =>
+    getTokenManager().objects.snapshot(resourceKey);
+
+  export const sealFile = (request: SealFileRequest, _storage?: string) =>
+    getTokenManager().objects.seal(copySealRequest(request));
+
+  export const getFileSeal = (request: SealFileRequest, _storage?: string) =>
+    getTokenManager().objects.state(copySealRequest(request));
+
+  export const removeSealedFile = (
+    request: SealFileRequest,
+    _storage?: string,
+  ) => getTokenManager().objects.remove(copySealRequest(request));
+
   export const createUploadUrl = async (
     request: UploadRequest,
     constraints?: UploadConstraints,
@@ -94,6 +121,7 @@ export namespace internal {
     const config = getConfig();
     const tokenManager = getTokenManager();
     const baseKey = tokenManager.generateResourceKey(request.filename);
+    tokenManager.assertLegacyMutation(request.path ?? "");
     const resourceKey = request.staging
       ? tokenManager.toStagedResourceKey(baseKey, request.path)
       : baseKey;

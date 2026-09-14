@@ -1,5 +1,5 @@
 import type { PassThrough } from "node:stream";
-import { createReadStream, promises as fs } from "node:fs";
+import { createReadStream } from "node:fs";
 import { Logging } from "@antelopejs/interface-core/logging";
 import {
   Context,
@@ -104,18 +104,7 @@ export class FileStorageController extends Controller("file-storage") {
     }
 
     try {
-      await tokenManager.ensureFileDirectory(
-        uploadToken.resourceKey,
-        uploadToken.path,
-      );
-
-      const filePath = tokenManager.getFilePath(
-        uploadToken.resourceKey,
-        uploadToken.path,
-      );
-      await fs.writeFile(filePath, body);
-
-      await tokenManager.saveFileMetadata(buildStoredFileMetadata(uploadToken));
+      await tokenManager.saveUpload(buildStoredFileMetadata(uploadToken), body);
 
       await tokenManager.deleteUploadToken(token);
 
@@ -216,10 +205,7 @@ export class FileStorageController extends Controller("file-storage") {
     }
 
     try {
-      const filePath = tokenManager.getFilePath(
-        decodedResourceKey,
-        metadata.path,
-      );
+      const filePath = tokenManager.resolveFilePath(metadata);
       context.response.setStatus(200);
       context.response.addHeader("Content-Length", metadata.size.toString());
       context.response.addHeader(

@@ -2,10 +2,14 @@ import { randomUUID } from "node:crypto";
 import { type Dirent, promises as fs } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import {
+  FileSealError,
   isStagedKey,
+  SEALED_PREFIX,
   STAGING_PREFIX,
   toStagedKey,
 } from "@antelopejs/interface-file-storage";
+
+import { ObjectStore } from "./object-store";
 
 const FilesDirectory = "files";
 const MetadataDirectory = "metadata";
@@ -35,6 +39,7 @@ export interface ReadToken {
 
 export interface StoredFileMetadata {
   resourceKey: string;
+  objectId?: string;
   path?: string;
   mimetype: string;
   size: number;
@@ -48,6 +53,7 @@ export interface TokenCleanupResult {
 }
 
 export class TokenManager {
+  readonly objects: ObjectStore;
   private readonly storagePath: string;
   private readonly filesPath: string;
   private readonly metadataPath: string;
@@ -56,6 +62,7 @@ export class TokenManager {
   private readonly readTokensPath: string;
 
   constructor(storagePath: string) {
+    this.objects = new ObjectStore(storagePath, this);
     this.storagePath = storagePath;
     this.filesPath = join(storagePath, FilesDirectory);
     this.metadataPath = join(storagePath, MetadataDirectory);
@@ -79,6 +86,7 @@ export class TokenManager {
       fs.mkdir(this.uploadTokensPath, { recursive: true }),
       fs.mkdir(this.readTokensPath, { recursive: true }),
     ]);
+    await this.objects.initialize();
   }
 
   generateToken(): string {
@@ -152,6 +160,7 @@ export class TokenManager {
   }
 
   async saveFileMetadata(metadata: StoredFileMetadata): Promise<void> {
+    this.assertLegacyMutation(metadata.resourceKey);
     const metadataFilePath = this.getMetadataPath(metadata.resourceKey);
     await fs.mkdir(dirname(metadataFilePath), { recursive: true });
     await this.writeJsonFile(metadataFilePath, metadata);
@@ -160,13 +169,44 @@ export class TokenManager {
   async getFileMetadata(
     resourceKey: string,
   ): Promise<StoredFileMetadata | null> {
+    const object = await this.objects.read(resourceKey);
+    if (object) return { ...object.metadata, objectId: object.objectId };
+    if (resourceKey.startsWith(SEALED_PREFIX)) return null;
+    return this.getLegacyMetadata(resourceKey);
+  }
+
+  async getLegacyMetadata(
+    resourceKey: string,
+  ): Promise<StoredFileMetadata | null> {
     return this.readJsonFile<StoredFileMetadata>(
       this.getMetadataPath(resourceKey),
     );
   }
 
   async deleteFileMetadata(resourceKey: string): Promise<void> {
+    this.assertLegacyMutation(resourceKey);
     await this.unlinkIfExists(this.getMetadataPath(resourceKey));
+  }
+
+  resolveFilePath(metadata: StoredFileMetadata): string {
+    return metadata.objectId
+      ? this.objects.dataPath(metadata.objectId)
+      : this.getFilePath(metadata.resourceKey, metadata.path);
+  }
+
+  async saveUpload(metadata: StoredFileMetadata, body: Buffer): Promise<void> {
+    this.assertLegacyMutation(metadata.resourceKey);
+    await this.objects.upload(metadata, body);
+  }
+
+  assertLegacyMutation(resourceKey: string): void {
+    const parts = resourceKey.split("/");
+    if (
+      parts.includes(SEALED_PREFIX.slice(0, -1)) ||
+      parts.includes(".immutable")
+    ) {
+      throw new FileSealError("Reserved object namespace", "INVALID_REQUEST");
+    }
   }
 
   getFilePath(resourceKey: string, path?: string): string {
@@ -181,8 +221,14 @@ export class TokenManager {
   }
 
   async fileExists(resourceKey: string, path?: string): Promise<boolean> {
+    const metadata = await this.getFileMetadata(resourceKey);
+    if (resourceKey.startsWith(SEALED_PREFIX) && !metadata) return false;
     try {
-      await fs.access(this.getFilePath(resourceKey, path));
+      await fs.access(
+        metadata
+          ? this.resolveFilePath(metadata)
+          : this.getFilePath(resourceKey, path),
+      );
       return true;
     } catch {
       return false;
@@ -190,6 +236,8 @@ export class TokenManager {
   }
 
   async deleteFile(resourceKey: string, path?: string): Promise<void> {
+    this.assertLegacyMutation(resourceKey);
+    await this.objects.delete(resourceKey);
     await this.unlinkIfExists(this.getFilePath(resourceKey, path));
   }
 
@@ -199,9 +247,19 @@ export class TokenManager {
   }
 
   async moveFile(sourceKey: string, destKey: string): Promise<void> {
+    this.assertLegacyMutation(sourceKey);
+    this.assertLegacyMutation(destKey);
     if (sourceKey === destKey) {
       return;
     }
+    if (await this.objects.move(sourceKey, destKey)) return;
+    await this.moveLegacyFile(sourceKey, destKey);
+  }
+
+  private async moveLegacyFile(
+    sourceKey: string,
+    destKey: string,
+  ): Promise<void> {
     const sourceMetadata = await this.getFileMetadata(sourceKey);
     if (!(await this.fileExists(sourceKey, sourceMetadata?.path))) {
       return;
@@ -210,6 +268,7 @@ export class TokenManager {
     const destFilePath = this.getFilePath(destKey);
     await fs.mkdir(dirname(destFilePath), { recursive: true });
     await fs.rename(sourceFilePath, destFilePath);
+    await this.objects.delete(destKey);
     await this.relocateMetadata(sourceKey, destKey, sourceMetadata);
   }
 
@@ -249,7 +308,11 @@ export class TokenManager {
 
   async cleanupExpiredStagingFiles(maxAgeMs: number): Promise<number> {
     const cutoff = Date.now() - maxAgeMs;
-    return this.removeExpiredStagedEntries(this.stagingFilesPath, cutoff);
+    const immutableRemoved = await this.objects.cleanupStaging(cutoff);
+    return (
+      immutableRemoved +
+      (await this.removeExpiredStagedEntries(this.stagingFilesPath, cutoff))
+    );
   }
 
   private async removeExpiredStagedEntries(
@@ -302,7 +365,7 @@ export class TokenManager {
     return join(this.readTokensPath, `${token}${JsonFileSuffix}`);
   }
 
-  private getMetadataPath(resourceKey: string): string {
+  getMetadataPath(resourceKey: string): string {
     return join(this.metadataPath, `${resourceKey}${JsonFileSuffix}`);
   }
 
