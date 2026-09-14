@@ -109,7 +109,7 @@ export class ObjectStore {
 
   private createObject(metadata: StoredFileMetadata): StoredObject {
     const generation = randomUUID();
-    return {
+    const object: StoredObject = {
       objectId: generation,
       metadata,
       snapshot: {
@@ -124,10 +124,12 @@ export class ObjectStore {
           size: metadata.size,
           mimetype: metadata.mimetype,
           lastModified: metadata.lastModified,
-          ...(metadata.metadata ? { metadata: metadata.metadata } : {}),
         },
       },
     };
+    if (metadata.metadata)
+      object.snapshot.metadata.metadata = metadata.metadata;
+    return object;
   }
 
   async snapshot(resourceKey: string): Promise<FileSnapshot> {
@@ -395,19 +397,24 @@ export class ObjectStore {
   }
 
   private assertObject(object: StoredObject): void {
-    const identity = object?.snapshot?.identity;
-    const metadata = object?.snapshot?.metadata;
-    const stored = object?.metadata;
+    if (
+      !object?.snapshot?.identity ||
+      !object.snapshot.metadata ||
+      !object.metadata
+    ) {
+      throw new Error("Incomplete immutable object manifest");
+    }
+    const identity = object.snapshot.identity;
+    const metadata = object.snapshot.metadata;
+    const stored = object.metadata;
     const identifiers = [
-      object?.objectId,
-      identity?.storageId,
-      identity?.generation,
-      identity?.resourceKey,
+      object.objectId,
+      identity.storageId,
+      identity.generation,
+      identity.resourceKey,
     ];
     if (
       identifiers.some((value) => typeof value !== "string" || !value.length) ||
-      !metadata ||
-      !stored ||
       metadata.resourceKey !== identity.resourceKey ||
       stored.resourceKey !== identity.resourceKey ||
       typeof metadata.filename !== "string" ||

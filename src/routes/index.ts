@@ -1,5 +1,5 @@
-import type { PassThrough } from "node:stream";
 import { createReadStream } from "node:fs";
+import type { PassThrough } from "node:stream";
 import { Logging } from "@antelopejs/interface-core/logging";
 import {
   Context,

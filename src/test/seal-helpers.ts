@@ -12,8 +12,8 @@ import {
   type SealFileRequest,
 } from "@antelopejs/interface-file-storage";
 
-import { getConfig, getTokenManager } from "../index";
 import { setModuleState } from "../module-config";
+import { getConfig, getTokenManager } from "../index";
 import { TokenManager } from "../storage/token-manager";
 
 export const Original = "original immutable bytes";

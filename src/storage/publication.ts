@@ -1,6 +1,6 @@
-import { createHash, randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { dirname, join } from "node:path";
+import { createHash, randomUUID } from "node:crypto";
 
 export function digest(value: string): string {
   return createHash("sha256").update(value).digest("hex");
@@ -33,7 +33,7 @@ export async function syncDirectory(path: string): Promise<void> {
 
 export async function writeDurable(
   path: string,
-  value: string | Buffer,
+  value: string | Uint8Array,
 ): Promise<void> {
   const handle = await fs.open(path, "wx");
   try {

@@ -11,6 +11,8 @@ import {
 } from "@antelopejs/interface-file-storage";
 
 import { getConfig } from "../index";
+import { CrashExitCode } from "./seal-process-types";
+import { startSealProcess } from "./seal-process-helpers";
 import {
   admission,
   download,
@@ -22,8 +24,6 @@ import {
   sealError,
   upload,
 } from "./seal-helpers";
-import { startSealProcess } from "./seal-process-helpers";
-import { CrashExitCode } from "./seal-process-types";
 
 const ProcessTimeoutMs = 10_000;
 
@@ -125,6 +125,12 @@ describe("independent-process seal publication", function () {
       firstWon ? Original : Replacement,
     );
   });
+});
+
+describe("independent-process admission binding and recovery", function () {
+  this.timeout(ProcessTimeoutMs);
+  beforeEach(reset);
+  after(reset);
 
   it("binds changed concurrent tuples atomically across processes", async () => {
     const firstRequest = await admission((await upload()).resourceKey);
