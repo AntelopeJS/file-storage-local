@@ -2,17 +2,32 @@ import { randomUUID } from "node:crypto";
 import { type Dirent, promises as fs } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import {
+  FileConflictError,
+  FileNotFoundError,
   isStagedKey,
   STAGING_PREFIX,
   toStagedKey,
+  UploadValidationError,
   type Visibility,
 } from "@antelopejs/interface-file-storage";
+
+import { promoteFile } from "./promotion";
+import {
+  ensureDirectory,
+  hasCode,
+  pathExists,
+  prepareFile,
+  publishFile,
+  publishJson,
+  removeFile,
+} from "./publication";
 
 const FilesDirectory = "files";
 const MetadataDirectory = "metadata";
 const TokensDirectory = "tokens";
 const UploadTokensDirectory = "upload";
 const ReadTokensDirectory = "read";
+const ConsumedTokensDirectory = "consumed";
 const JsonFileSuffix = ".json";
 const PathTrimRegex = /^\/|\/$/g;
 const DotCharacter = ".";
@@ -43,6 +58,7 @@ export interface StoredFileMetadata {
   lastModified: number;
   metadata?: Record<string, string>;
   visibility?: Visibility;
+  promotionSource?: string;
 }
 
 export interface TokenCleanupResult {
@@ -77,10 +93,10 @@ export class TokenManager {
 
   async initialize(): Promise<void> {
     await Promise.all([
-      fs.mkdir(this.filesPath, { recursive: true }),
-      fs.mkdir(this.metadataPath, { recursive: true }),
-      fs.mkdir(this.uploadTokensPath, { recursive: true }),
-      fs.mkdir(this.readTokensPath, { recursive: true }),
+      ensureDirectory(this.filesPath),
+      ensureDirectory(this.metadataPath),
+      ensureDirectory(this.uploadTokensPath),
+      ensureDirectory(this.readTokensPath),
     ]);
   }
 
@@ -136,6 +152,56 @@ export class TokenManager {
     await this.unlinkIfExists(this.getUploadTokenPath(token));
   }
 
+  async saveUpload(token: string, body: Buffer): Promise<void> {
+    const upload = await this.getUploadToken(token);
+    if (!upload || upload.expiresAt < Date.now())
+      throw new FileNotFoundError(token);
+    if (await pathExists(this.consumedTokenPath(token)))
+      throw new FileConflictError(upload.resourceKey);
+    if (body.length !== upload.size) {
+      throw new UploadValidationError("Body size mismatch", "SIZE_EXCEEDED");
+    }
+    const destination = this.getFilePath(upload.resourceKey, upload.path);
+    const temporary = await prepareFile(destination, body);
+    try {
+      await this.consumeUpload(upload);
+      if (await pathExists(destination))
+        throw new FileConflictError(upload.resourceKey);
+      await publishJson(
+        this.getMetadataPath(upload.resourceKey),
+        this.uploadMetadata(upload),
+      );
+      await publishFile(temporary, destination);
+    } catch (error: unknown) {
+      if (hasCode(error, "EEXIST"))
+        throw new FileConflictError(upload.resourceKey);
+      throw error;
+    } finally {
+      await removeFile(temporary);
+    }
+  }
+
+  private async consumeUpload(upload: UploadToken): Promise<void> {
+    if (upload.expiresAt < Date.now())
+      throw new FileNotFoundError(upload.resourceKey);
+    await publishJson(this.consumedTokenPath(upload.token), upload);
+    if (upload.expiresAt < Date.now())
+      throw new FileNotFoundError(upload.resourceKey);
+  }
+
+  private consumedTokenPath(token: string): string {
+    return join(
+      this.uploadTokensPath,
+      ConsumedTokensDirectory,
+      `${token}${JsonFileSuffix}`,
+    );
+  }
+
+  private uploadMetadata(upload: UploadToken): StoredFileMetadata {
+    const { token: _token, expiresAt: _expiresAt, ...metadata } = upload;
+    return { ...metadata, lastModified: Date.now() };
+  }
+
   async createReadToken(
     resourceKey: string,
     expiresAt: number,
@@ -167,9 +233,12 @@ export class TokenManager {
   async getFileMetadata(
     resourceKey: string,
   ): Promise<StoredFileMetadata | null> {
-    return this.readJsonFile<StoredFileMetadata>(
+    const metadata = await this.readJsonFile<StoredFileMetadata>(
       this.getMetadataPath(resourceKey),
     );
+    if (!metadata || !(await this.fileExists(resourceKey, metadata.path)))
+      return null;
+    return metadata;
   }
 
   async deleteFileMetadata(resourceKey: string): Promise<void> {
@@ -203,6 +272,10 @@ export class TokenManager {
   async ensureFileDirectory(resourceKey: string, path?: string): Promise<void> {
     const filePath = this.getFilePath(resourceKey, path);
     await fs.mkdir(dirname(filePath), { recursive: true });
+  }
+
+  async promoteFile(sourceKey: string): Promise<string> {
+    return promoteFile(this, this.metadataPath, sourceKey);
   }
 
   async moveFile(sourceKey: string, destKey: string): Promise<void> {
@@ -252,6 +325,10 @@ export class TokenManager {
     );
     const readTokens = await this.cleanupExpiredTokenDirectory(
       this.readTokensPath,
+      now,
+    );
+    await this.cleanupExpiredTokenDirectory(
+      join(this.uploadTokensPath, ConsumedTokensDirectory),
       now,
     );
     return { uploadTokens, readTokens };

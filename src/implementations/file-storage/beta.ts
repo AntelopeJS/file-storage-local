@@ -3,6 +3,7 @@ import {
   FileNotFoundError,
   type PresignedReadResponse,
   type PresignedUploadResponse,
+  type PromoteFileResponse,
   type UploadConstraints,
   type UploadRequest,
   UploadValidationError,
@@ -211,5 +212,14 @@ export namespace internal {
     storage?: string,
   ): Promise<void> => {
     await getTokenManager(storage).moveFile(sourceKey, destKey);
+  };
+
+  export const promoteFile = async (
+    resourceKey: string,
+    storage?: string,
+  ): Promise<PromoteFileResponse> => {
+    return {
+      resourceKey: await getTokenManager(storage).promoteFile(resourceKey),
+    };
   };
 }

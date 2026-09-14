@@ -1,6 +1,10 @@
+import { promises as fs } from "node:fs";
 import type { PassThrough } from "node:stream";
-import { createReadStream, promises as fs } from "node:fs";
 import { Logging } from "@antelopejs/interface-core/logging";
+import {
+  FileConflictError,
+  FileNotFoundError,
+} from "@antelopejs/interface-file-storage";
 import {
   Context,
   Controller,
@@ -14,26 +18,6 @@ import {
 } from "@antelopejs/interface-api";
 
 import { getStorageConfig, getTokenManager } from "../module-config";
-import type { StoredFileMetadata, UploadToken } from "../storage/token-manager";
-
-function buildStoredFileMetadata(uploadToken: UploadToken): StoredFileMetadata {
-  const metadata: StoredFileMetadata = {
-    resourceKey: uploadToken.resourceKey,
-    mimetype: uploadToken.mimetype,
-    size: uploadToken.size,
-    lastModified: Date.now(),
-  };
-  if (uploadToken.path) {
-    metadata.path = uploadToken.path;
-  }
-  if (uploadToken.metadata) {
-    metadata.metadata = uploadToken.metadata;
-  }
-  if (uploadToken.visibility) {
-    metadata.visibility = uploadToken.visibility;
-  }
-  return metadata;
-}
 
 /**
  * File Storage HTTP Controller
@@ -108,26 +92,17 @@ export class FileStorageController extends Controller("file-storage") {
     }
 
     try {
-      await tokenManager.ensureFileDirectory(
-        uploadToken.resourceKey,
-        uploadToken.path,
-      );
-
-      const filePath = tokenManager.getFilePath(
-        uploadToken.resourceKey,
-        uploadToken.path,
-      );
-      await fs.writeFile(filePath, body);
-
-      await tokenManager.saveFileMetadata(buildStoredFileMetadata(uploadToken));
-
-      await tokenManager.deleteUploadToken(token);
+      await tokenManager.saveUpload(token, body);
 
       return new HTTPResult(200, {
         success: true,
         resourceKey: uploadToken.resourceKey,
       });
     } catch (error: unknown) {
+      if (error instanceof FileConflictError)
+        return new HTTPResult(409, { error: error.message });
+      if (error instanceof FileNotFoundError)
+        return new HTTPResult(403, { error: "Token expired" });
       Logging.Error("File upload error:", error);
       return new HTTPResult(500, { error: "Failed to save file" });
     }
@@ -247,7 +222,8 @@ export class FileStorageController extends Controller("file-storage") {
 
       // Stream the file instead of buffering it in memory so peak memory
       // stays bounded regardless of file size or concurrent downloads.
-      const fileStream = createReadStream(filePath);
+      const handle = await fs.open(filePath, "r");
+      const fileStream = handle.createReadStream();
       const abortDownload = (error: Error) => {
         Logging.Error("File download error:", error);
         // The 200 status is committed once streaming starts, so abort the
