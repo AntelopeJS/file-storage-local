@@ -15,6 +15,7 @@ const ReadTokensDirectory = "read";
 const JsonFileSuffix = ".json";
 const PathTrimRegex = /^\/|\/$/g;
 const DotCharacter = ".";
+const TokenIdentifierPattern = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
 export interface UploadToken {
   token: string;
@@ -120,10 +121,11 @@ export class TokenManager {
   }
 
   async getUploadToken(token: string): Promise<UploadToken | null> {
-    return this.readJsonFile<UploadToken>(this.getUploadTokenPath(token));
+    return this.readToken<UploadToken>(token, this.getUploadTokenPath(token));
   }
 
   async deleteUploadToken(token: string): Promise<void> {
+    if (!TokenIdentifierPattern.test(token)) return;
     await this.unlinkIfExists(this.getUploadTokenPath(token));
   }
 
@@ -141,10 +143,11 @@ export class TokenManager {
   }
 
   async getReadToken(token: string): Promise<ReadToken | null> {
-    return this.readJsonFile<ReadToken>(this.getReadTokenPath(token));
+    return this.readToken<ReadToken>(token, this.getReadTokenPath(token));
   }
 
   async deleteReadToken(token: string): Promise<void> {
+    if (!TokenIdentifierPattern.test(token)) return;
     await this.unlinkIfExists(this.getReadTokenPath(token));
   }
 
@@ -301,6 +304,21 @@ export class TokenManager {
 
   private getMetadataPath(resourceKey: string): string {
     return join(this.metadataPath, `${resourceKey}${JsonFileSuffix}`);
+  }
+
+  private async readToken<T extends ReadToken>(
+    token: string,
+    path: string,
+  ): Promise<T | null> {
+    if (!TokenIdentifierPattern.test(token)) return null;
+    const data = await this.readJsonFile<T>(path);
+    if (
+      data?.token !== token ||
+      typeof data.resourceKey !== "string" ||
+      !Number.isFinite(data.expiresAt)
+    )
+      return null;
+    return data;
   }
 
   private async cleanupExpiredTokenDirectory(
