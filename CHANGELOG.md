@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.1.4
+
+[compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.3...v0.1.4)
+
+### 🩹 Fixes
+
+- **storage:** Prevent private-read token path traversal ([#13](https://github.com/AntelopeJS/file-storage-local/pull/13))
+- **storage:** Harden uploads and promotion with per-file visibility ([#15](https://github.com/AntelopeJS/file-storage-local/pull/15))
+
+### 🏡 Chore
+
+- Replace Biome with oxlint, oxfmt and Knip ([#12](https://github.com/AntelopeJS/file-storage-local/pull/12))
+
+### 🤖 CI
+
+- Standardize npm releases ([#11](https://github.com/AntelopeJS/file-storage-local/pull/11))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+- Thomas ([@Thomasims](http://github.com/Thomasims))
+
 ## v0.1.3
 
 [compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.2...v0.1.3)
