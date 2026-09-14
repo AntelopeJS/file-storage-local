@@ -34,3 +34,11 @@ Deletion is ordinary cleanup, not a cancellation fence. A delayed publication ca
 The implementation uses POSIX local-filesystem hard links and file/directory synchronization on one filesystem. Tests cover normal HTTP requests, distinct concurrent bodies, independent Node processes, interrupted bodies, injected disk errors, process death before and after publication, replay without a source, and named/private storage behavior. These tests do not establish NFS, distributed storage, machine-power-loss, or hardware durability guarantees. The module remains a local-storage provider, not a clustered storage service.
 
 The dedicated promotion hook and `FileConflictError` depend on the unpublished interface-file-storage PR #8 contract. Validation uses a locally unpacked interface artifact under ignored `node_modules`; package versions and lockfiles do not claim a released dependency. A clean registry-only installation is blocked until the coordinated interface release.
+
+`pnpm test` uses Antelope's module runner. Because this provider declares
+`@antelopejs/interface-file-storage` in `antelopeJs.implements`, the runner also
+discovers that package's `dist/tests` conformance suite. The test setup requires
+the suite to be present so an older interface cannot silently omit it. Shared
+tests perform real HTTP uploads, reads, promotion/replay, conflict checks, and
+cleanup; local tests retain filesystem faults, token consumption, named-storage
+routing, legacy metadata, streaming, and staging-expiry coverage.
