@@ -9,6 +9,7 @@ import {
   STAGING_PREFIX,
 } from "@antelopejs/interface-file-storage";
 
+import { ensureDirectory, syncDirectory } from "../storage/publication";
 import type { WorkerMessage, WorkerRequest } from "./publication-worker";
 import { TokenManager, type UploadToken } from "../storage/token-manager";
 
@@ -18,6 +19,11 @@ const Mime = "text/plain";
 const Lifetime = 60_000;
 const FinalKey = "owned.txt";
 const StageKey = `${STAGING_PREFIX}${FinalKey}`;
+const WindowsPlatform = "win32";
+const PosixPlatform = "linux";
+const PlatformProperty = "platform";
+const UnsupportedSyncCodes = ["EPERM", "EACCES", "EINVAL", "ENOTSUP", "EISDIR"];
+const FatalSyncCodes = ["ENOSPC", "EIO", "EROFS"];
 let root: string;
 let manager: TokenManager;
 const children = new Set<ChildProcess>();
@@ -80,6 +86,51 @@ async function seed(): Promise<UploadToken> {
   const token = await upload();
   await manager.saveUpload(token.token, Buffer.from(First));
   return token;
+}
+
+interface SyncableHandle {
+  sync: () => Promise<void>;
+}
+
+async function asPlatform(
+  platform: string,
+  run: () => Promise<void>,
+): Promise<void> {
+  const descriptor = Object.getOwnPropertyDescriptor(
+    process,
+    PlatformProperty,
+  ) ?? { value: process.platform, configurable: true };
+  Object.defineProperty(process, PlatformProperty, {
+    value: platform,
+    configurable: true,
+  });
+  try {
+    await run();
+  } finally {
+    Object.defineProperty(process, PlatformProperty, descriptor);
+  }
+}
+
+async function withFailingDirectorySync(
+  code: string,
+  run: () => Promise<void>,
+): Promise<void> {
+  const probe = await fs.open(root, "r");
+  const prototype = Object.getPrototypeOf(probe) as SyncableHandle;
+  await probe.close();
+  const original = prototype.sync;
+  prototype.sync = () => {
+    const error: NodeJS.ErrnoException = new Error(
+      `${code}: operation not permitted, fsync`,
+    );
+    error.code = code;
+    return Promise.reject(error);
+  };
+  try {
+    await run();
+  } finally {
+    prototype.sync = original;
+  }
 }
 
 function setup(): void {
@@ -297,5 +348,44 @@ describe("durable promotion publication", () => {
       await fs.readFile(manager.getFilePath(StageKey), "utf8"),
       First,
     );
+  });
+});
+
+describe("directory durability across platforms", () => {
+  setup();
+
+  it("keeps storage initialization working where directory fsync is unsupported", async () => {
+    for (const code of UnsupportedSyncCodes) {
+      const storage = join(root, "unsupported", code);
+      await asPlatform(WindowsPlatform, () =>
+        withFailingDirectorySync(code, async () => {
+          await new TokenManager(storage).initialize();
+          await syncDirectory(storage);
+        }),
+      );
+      assert.equal((await fs.stat(join(storage, "files"))).isDirectory(), true);
+    }
+  });
+
+  it("still surfaces real storage failures during directory fsync", async () => {
+    for (const code of FatalSyncCodes) {
+      await asPlatform(WindowsPlatform, () =>
+        withFailingDirectorySync(code, async () => {
+          await assert.rejects(syncDirectory(root), { code });
+        }),
+      );
+    }
+  });
+
+  it("keeps every directory fsync failure fatal on posix platforms", async () => {
+    for (const code of [...UnsupportedSyncCodes, ...FatalSyncCodes]) {
+      await asPlatform(PosixPlatform, () =>
+        withFailingDirectorySync(code, async () => {
+          await assert.rejects(ensureDirectory(join(root, "posix", code)), {
+            code,
+          });
+        }),
+      );
+    }
   });
 });

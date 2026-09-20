@@ -2,6 +2,15 @@ import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { dirname, resolve } from "node:path";
 
+const WindowsPlatform = "win32";
+const UnsupportedDirectorySyncCodes = new Set([
+  "EPERM",
+  "EACCES",
+  "EINVAL",
+  "ENOTSUP",
+  "EISDIR",
+]);
+
 export async function ensureDirectory(path: string): Promise<void> {
   const created = await fs.mkdir(path, { recursive: true });
   if (!created) return;
@@ -18,9 +27,17 @@ export async function syncDirectory(path: string): Promise<void> {
   const directory = await fs.open(path, "r");
   try {
     await directory.sync();
+  } catch (error: unknown) {
+    if (!isUnsupportedDirectorySync(error)) throw error;
   } finally {
     await directory.close();
   }
+}
+
+function isUnsupportedDirectorySync(error: unknown): boolean {
+  if (process.platform !== WindowsPlatform) return false;
+  const code = errorCode(error);
+  return code !== undefined && UnsupportedDirectorySyncCodes.has(code);
 }
 
 export async function prepareFile(
@@ -59,8 +76,13 @@ export async function publishJson(path: string, value: unknown): Promise<void> {
   }
 }
 
+function errorCode(error: unknown): string | undefined {
+  if (!(error instanceof Error) || !("code" in error)) return undefined;
+  return typeof error.code === "string" ? error.code : undefined;
+}
+
 export function hasCode(error: unknown, code: string): boolean {
-  return error instanceof Error && "code" in error && error.code === code;
+  return errorCode(error) === code;
 }
 
 export async function pathExists(path: string): Promise<boolean> {
