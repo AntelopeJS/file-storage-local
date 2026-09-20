@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.1.5
+
+[compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.4...v0.1.5)
+
+### 🩹 Fixes
+
+- **storage:** Tolerate unsupported directory fsync on Windows ([#19](https://github.com/AntelopeJS/file-storage-local/pull/19))
+
+### 📖 Documentation
+
+- Add public package readme ([#16](https://github.com/AntelopeJS/file-storage-local/pull/16))
+
+### 🏡 Chore
+
+- Align community files with the organization defaults ([#18](https://github.com/AntelopeJS/file-storage-local/pull/18))
+
+### 🤖 CI
+
+- Use shared npm release workflow ([#17](https://github.com/AntelopeJS/file-storage-local/pull/17))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
 ## v0.1.4
 
 [compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.3...v0.1.4)
