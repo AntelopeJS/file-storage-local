@@ -18,6 +18,12 @@ import {
 } from "@antelopejs/interface-api";
 
 import { getStorageConfig, getTokenManager } from "../module-config";
+import {
+  buildContentDisposition,
+  NoSniffHeaderValue,
+  resolveContentType,
+  resolveDownloadFilename,
+} from "./download-headers";
 
 /**
  * File Storage HTTP Controller
@@ -201,11 +207,17 @@ export class FileStorageController extends Controller("file-storage") {
         decodedResourceKey,
         metadata.path,
       );
-      context.response.setStatus(200);
+      context.response.getWriteStream(
+        resolveContentType(metadata.mimetype),
+        200,
+      );
       context.response.addHeader("Content-Length", metadata.size.toString());
+      context.response.addHeader("X-Content-Type-Options", NoSniffHeaderValue);
       context.response.addHeader(
         "Content-Disposition",
-        `inline; filename="${metadata.metadata?.["original-filename"] || decodedResourceKey}"`,
+        buildContentDisposition(
+          resolveDownloadFilename(metadata, decodedResourceKey),
+        ),
       );
       context.response.addHeader(
         "Cache-Control",

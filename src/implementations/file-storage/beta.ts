@@ -10,12 +10,12 @@ import {
 } from "@antelopejs/interface-file-storage";
 
 import { getStorageConfig, getTokenManager } from "../../module-config";
+import { FilenameMetadataKey } from "../../storage/token-manager";
 
 const BaseUrlTrailingSlashRegex = /\/$/;
 const FileUploadPath = "/file-storage/upload";
 const FileReadPath = "/file-storage/files";
 const MillisecondsPerSecond = 1000;
-const FilenameMetadataKey = "filename";
 
 interface StoredMetadataSnapshot {
   resourceKey: string;

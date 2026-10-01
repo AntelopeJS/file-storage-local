@@ -22,6 +22,8 @@ import {
   removeFile,
 } from "./publication";
 
+export const FilenameMetadataKey = "filename";
+
 const FilesDirectory = "files";
 const MetadataDirectory = "metadata";
 const TokensDirectory = "tokens";
