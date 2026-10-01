@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.1.6
+
+[compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.5...v0.1.6)
+
+### 🩹 Fixes
+
+- **routes:** Serve downloads with their stored content type and original filename ([#26](https://github.com/AntelopeJS/file-storage-local/pull/26))
+
+### 🏡 Chore
+
+- Remove .git-blame-ignore-revs ([#22](https://github.com/AntelopeJS/file-storage-local/pull/22))
+
+### 🤖 CI
+
+- **release:** Release next from a dedicated branch and restore requireCommits ([#23](https://github.com/AntelopeJS/file-storage-local/pull/23))
+- **release:** Reference the shared release workflows through v1 ([#24](https://github.com/AntelopeJS/file-storage-local/pull/24))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
 ## v0.1.5
 
 [compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.4...v0.1.5)
