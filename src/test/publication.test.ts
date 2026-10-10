@@ -100,7 +100,8 @@ async function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
       () => reject(new Error(`Timed out after ${ms} ms`)),
       ms,
     );
-    void work.finally(() => clearTimeout(timer));
+    const stop = () => clearTimeout(timer);
+    work.then(stop, stop);
   });
   return Promise.race([work, expired]);
 }
