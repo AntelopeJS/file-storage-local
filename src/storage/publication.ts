@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 const WindowsPlatform = "win32";
+const ExtendedLengthPrefix = /^\\\\\?\\/;
 const UnsupportedDirectorySyncCodes = new Set([
   "EPERM",
   "EACCES",
@@ -14,13 +15,24 @@ const UnsupportedDirectorySyncCodes = new Set([
 export async function ensureDirectory(path: string): Promise<void> {
   const created = await fs.mkdir(path, { recursive: true });
   if (!created) return;
-  const parent = dirname(resolve(created));
+  const topmost = comparablePath(created);
   let current = resolve(path);
-  while (current !== parent) {
+  while (true) {
     await syncDirectory(current);
-    current = dirname(current);
+    const parent = dirname(current);
+    if (comparablePath(current) === topmost || parent === current) {
+      await syncDirectory(parent);
+      return;
+    }
+    current = parent;
   }
-  await syncDirectory(parent);
+}
+
+function comparablePath(path: string): string {
+  const resolved = resolve(path.replace(ExtendedLengthPrefix, ""));
+  return process.platform === WindowsPlatform
+    ? resolved.toLowerCase()
+    : resolved;
 }
 
 export async function syncDirectory(path: string): Promise<void> {
