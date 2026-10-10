@@ -95,15 +95,14 @@ interface SyncableHandle {
 }
 
 async function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
   const expired = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`Timed out after ${ms} ms`)), ms);
+    const timer = setTimeout(
+      () => reject(new Error(`Timed out after ${ms} ms`)),
+      ms,
+    );
+    void work.finally(() => clearTimeout(timer));
   });
-  try {
-    return await Promise.race([work, expired]);
-  } finally {
-    clearTimeout(timer);
-  }
+  return Promise.race([work, expired]);
 }
 
 async function asPlatform(
