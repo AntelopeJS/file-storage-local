@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.1.7
+
+[compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.6...v0.1.7)
+
+### 🩹 Fixes
+
+- **storage:** Stop directory sync at the created folder on Windows extended-length paths ([#28](https://github.com/AntelopeJS/file-storage-local/pull/28))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
 ## v0.1.6
 
 [compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.5...v0.1.6)
