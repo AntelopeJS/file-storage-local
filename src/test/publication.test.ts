@@ -24,6 +24,8 @@ const PosixPlatform = "linux";
 const PlatformProperty = "platform";
 const UnsupportedSyncCodes = ["EPERM", "EACCES", "EINVAL", "ENOTSUP", "EISDIR"];
 const FatalSyncCodes = ["ENOSPC", "EIO", "EROFS"];
+const ExtendedLengthPrefix = "\\\\?\\";
+const EnsureDirectoryTimeout = 2_000;
 let root: string;
 let manager: TokenManager;
 const children = new Set<ChildProcess>();
@@ -90,6 +92,18 @@ async function seed(): Promise<UploadToken> {
 
 interface SyncableHandle {
   sync: () => Promise<void>;
+}
+
+async function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const expired = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Timed out after ${ms} ms`)), ms);
+  });
+  try {
+    return await Promise.race([work, expired]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function asPlatform(
@@ -375,6 +389,24 @@ describe("directory durability across platforms", () => {
         }),
       );
     }
+  });
+
+  it("stops at the created directory when mkdir reports an extended-length path", async () => {
+    const target = join(root, "extended", "nested");
+    const original = fs.mkdir;
+    const reportExtendedPath = async (
+      ...args: Parameters<typeof fs.mkdir>
+    ): Promise<string | undefined> => {
+      const created = await original(...args);
+      return created && `${ExtendedLengthPrefix}${created}`;
+    };
+    fs.mkdir = reportExtendedPath as typeof fs.mkdir;
+    try {
+      await withTimeout(ensureDirectory(target), EnsureDirectoryTimeout);
+    } finally {
+      fs.mkdir = original;
+    }
+    assert.ok((await fs.stat(target)).isDirectory());
   });
 
   it("keeps every directory fsync failure fatal on posix platforms", async () => {
