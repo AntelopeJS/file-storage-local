@@ -48,6 +48,9 @@ const WindowsUnstorableKeys = [
   "media/trailing /file.txt",
 ];
 const PosixOnlyKeys = ["media/2026-10-13T10:00/file.txt", "media/CON/file.txt"];
+const WindowsMaxPath = 260;
+const DeepFolderCount = 10;
+const DeepFolderNameLength = 30;
 let root: string;
 let manager: TokenManager;
 
@@ -127,5 +130,23 @@ describe("resource keys on the local filesystem", () => {
           join(root, "files", ...key.split("/")),
         );
     });
+  });
+
+  it("stores and promotes keys whose path exceeds the Windows MAX_PATH limit", async () => {
+    const folder = Array.from({ length: DeepFolderCount }, (_, index) =>
+      `${index}`.padStart(DeepFolderNameLength, "f"),
+    ).join("/");
+    const staged = manager.toStagedResourceKey(
+      manager.generateResourceKey("deep.txt"),
+      folder,
+    );
+    await upload(staged);
+    assert.ok(manager.getFilePath(staged).length > WindowsMaxPath);
+    const promoted = await manager.promoteFile(staged);
+    assert.ok(manager.getFilePath(promoted).length > WindowsMaxPath);
+    assert.equal(
+      await fs.readFile(manager.getFilePath(promoted), "utf8"),
+      Body,
+    );
   });
 });
