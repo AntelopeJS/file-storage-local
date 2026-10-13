@@ -8,7 +8,6 @@ import {
   STAGING_PREFIX,
   stripStagingPrefix,
   toStagedKey,
-  UploadValidationError,
   type Visibility,
 } from "@antelopejs/interface-file-storage";
 
@@ -24,6 +23,7 @@ import {
   replaceFile,
 } from "./publication";
 import { isStorableKey, resolveKeyPath } from "./resource-key";
+import { exactSizeChunks, type UploadBody } from "./upload-body";
 
 export const FilenameMetadataKey = "filename";
 
@@ -167,17 +167,17 @@ export class TokenManager {
     await this.unlinkIfExists(this.getUploadTokenPath(token));
   }
 
-  async saveUpload(token: string, body: Buffer): Promise<void> {
+  async saveUpload(token: string, body: UploadBody): Promise<void> {
     const upload = await this.getUploadToken(token);
     if (!upload || upload.expiresAt < Date.now())
       throw new FileNotFoundError(token);
     if (await pathExists(this.consumedTokenPath(token)))
       throw new FileConflictError(upload.resourceKey);
-    if (body.length !== upload.size) {
-      throw new UploadValidationError("Body size mismatch", "SIZE_EXCEEDED");
-    }
     const destination = this.getFilePath(upload.resourceKey, upload.path);
-    const temporary = await prepareFile(destination, body);
+    const temporary = await prepareFile(
+      destination,
+      exactSizeChunks(body, upload.size),
+    );
     try {
       await this.consumeUpload(upload);
       if (await pathExists(destination))

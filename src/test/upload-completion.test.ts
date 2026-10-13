@@ -1,4 +1,5 @@
 import { request } from "node:http";
+import { randomBytes } from "node:crypto";
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
 import {
@@ -16,6 +17,10 @@ import { getConfig, getTokenManager } from "../module-config";
 const FirstBody = "first-body";
 const OtherBody = "other-body";
 const MimeType = "text/plain";
+const BinaryMimeType = "application/octet-stream";
+const Mebibyte = 1024 * 1024;
+const LargeUploadSize = 5 * Mebibyte;
+const ChunkSize = 64 * 1024;
 
 async function createUpload(
   request: Partial<UploadRequest> = {},
@@ -43,6 +48,97 @@ async function put(
     body,
   });
 }
+
+interface UploadErrorBody {
+  error: string;
+}
+
+async function createLargeUpload(): Promise<PresignedUploadResponse> {
+  return createUpload({
+    filename: "large.bin",
+    mimetype: BinaryMimeType,
+    size: LargeUploadSize,
+  });
+}
+
+function putChunked(
+  upload: PresignedUploadResponse,
+  body: Buffer,
+): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const chunked = request(upload.uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": BinaryMimeType },
+    });
+    chunked.on("response", (response) => {
+      response.resume();
+      resolve(response.statusCode ?? 0);
+    });
+    chunked.on("error", reject);
+    for (let offset = 0; offset < body.length; offset += ChunkSize)
+      chunked.write(body.subarray(offset, offset + ChunkSize));
+    chunked.end();
+  });
+}
+
+async function readBytes(resourceKey: string): Promise<Buffer> {
+  const read = await CreateReadUrl(resourceKey);
+  return Buffer.from(await (await fetch(read.url)).arrayBuffer());
+}
+
+describe("large HTTP uploads", () => {
+  it("accepts a body larger than the API default request body limit", async () => {
+    const upload = await createLargeUpload();
+    const body = randomBytes(LargeUploadSize);
+    const stored = await fetch(upload.uploadUrl, {
+      method: "PUT",
+      headers: upload.headers,
+      body,
+    });
+    assert.equal(stored.status, 200);
+    assert.ok((await readBytes(upload.resourceKey)).equals(body));
+    await DeleteFile(upload.resourceKey);
+  });
+
+  it("streams a chunked body without a Content-Length header", async () => {
+    const upload = await createLargeUpload();
+    const body = randomBytes(LargeUploadSize);
+    assert.equal(await putChunked(upload, body), 200);
+    assert.ok((await readBytes(upload.resourceKey)).equals(body));
+    await DeleteFile(upload.resourceKey);
+  });
+
+  it("rejects a declared Content-Length above the token size before reading", async () => {
+    const upload = await createLargeUpload();
+    const stored = await fetch(upload.uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": BinaryMimeType },
+      body: randomBytes(LargeUploadSize + 1),
+    });
+    assert.equal(stored.status, 403);
+    const result = (await stored.json()) as UploadErrorBody;
+    assert.equal(result.error, "Content-Length mismatch");
+    assert.equal(await FileExists(upload.resourceKey), false);
+  });
+
+  it("rejects a streamed body above the token size and keeps the URL usable", async () => {
+    const upload = await createLargeUpload();
+    const oversized = randomBytes(LargeUploadSize + Mebibyte);
+    assert.equal(await putChunked(upload, oversized), 403);
+    assert.equal(await FileExists(upload.resourceKey), false);
+    const body = oversized.subarray(0, LargeUploadSize);
+    assert.equal(await putChunked(upload, body), 200);
+    assert.ok((await readBytes(upload.resourceKey)).equals(body));
+    await DeleteFile(upload.resourceKey);
+  });
+
+  it("rejects a streamed body shorter than the token size", async () => {
+    const upload = await createLargeUpload();
+    const short = randomBytes(LargeUploadSize - 1);
+    assert.equal(await putChunked(upload, short), 403);
+    assert.equal(await FileExists(upload.resourceKey), false);
+  });
+});
 
 describe("write-once HTTP upload completion", () => {
   it("conflicts on replay even after the completed object is deleted", async () => {

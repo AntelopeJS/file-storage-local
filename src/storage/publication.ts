@@ -80,13 +80,13 @@ export async function replaceFile(
 
 export async function prepareFile(
   path: string,
-  data: Uint8Array | string,
+  data: string | Uint8Array | AsyncIterable<Uint8Array>,
 ): Promise<string> {
   await ensureDirectory(dirname(path));
   const temporary = `${path}.${randomUUID()}.tmp`;
   const handle = await fs.open(temporary, "wx");
   try {
-    await handle.writeFile(data);
+    await fs.writeFile(handle, data);
     await handle.sync();
     return temporary;
   } catch (error: unknown) {
