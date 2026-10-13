@@ -17,6 +17,7 @@ import {
   removeFile,
   syncDirectory,
 } from "./publication";
+import { isStorableKey } from "./resource-key";
 
 const MetadataSuffix = ".json";
 const FlushableOpenMode = "r+";
@@ -26,9 +27,8 @@ function destinationKey(sourceKey: string): string {
   if (
     !destination ||
     isStagedKey(destination) ||
-    destination
-      .split("/")
-      .some((part) => !part || part === "." || part === "..") ||
+    !isStorableKey(destination) ||
+    destination.split("/").some((part) => !part) ||
     destination.includes("\\")
   ) {
     throw new FileConflictError(sourceKey);

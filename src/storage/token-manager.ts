@@ -6,6 +6,7 @@ import {
   FileNotFoundError,
   isStagedKey,
   STAGING_PREFIX,
+  stripStagingPrefix,
   toStagedKey,
   UploadValidationError,
   type Visibility,
@@ -22,6 +23,7 @@ import {
   removeFile,
   replaceFile,
 } from "./publication";
+import { isStorableKey, resolveKeyPath } from "./resource-key";
 
 export const FilenameMetadataKey = "filename";
 
@@ -34,6 +36,8 @@ const ConsumedTokensDirectory = "consumed";
 const JsonFileSuffix = ".json";
 const PathTrimRegex = /^\/|\/$/g;
 const DotCharacter = ".";
+const KeySeparator = "/";
+const SafeExtensionPattern = /^[\p{L}\p{N}_-]{1,16}$/u;
 const TokenIdentifierPattern = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
 export interface UploadToken {
@@ -113,7 +117,9 @@ export class TokenManager {
 
   toStagedResourceKey(baseKey: string, path?: string): string {
     const normalizedPath = normalizePath(path);
-    const inner = normalizedPath ? `${normalizedPath}/${baseKey}` : baseKey;
+    const inner = normalizedPath
+      ? `${normalizedPath}${KeySeparator}${baseKey}`
+      : baseKey;
     return toStagedKey(inner);
   }
 
@@ -126,6 +132,7 @@ export class TokenManager {
     path?: string,
     visibility?: Visibility,
   ): Promise<UploadToken> {
+    this.assertStorable(resourceKey, path);
     const data: UploadToken = {
       token: this.generateToken(),
       resourceKey,
@@ -144,6 +151,11 @@ export class TokenManager {
     }
     await this.writeJsonFile(this.getUploadTokenPath(data.token), data);
     return data;
+  }
+
+  private assertStorable(resourceKey: string, path?: string): void {
+    this.getFilePath(resourceKey, path);
+    this.getMetadataPath(resourceKey);
   }
 
   async getUploadToken(token: string): Promise<UploadToken | null> {
@@ -236,6 +248,7 @@ export class TokenManager {
   async getFileMetadata(
     resourceKey: string,
   ): Promise<StoredFileMetadata | null> {
+    if (!isStorableKey(resourceKey)) return null;
     const metadata = await this.readJsonFile<StoredFileMetadata>(
       this.getMetadataPath(resourceKey),
     );
@@ -250,13 +263,16 @@ export class TokenManager {
 
   getFilePath(resourceKey: string, path?: string): string {
     if (isStagedKey(resourceKey)) {
-      return join(this.storagePath, resourceKey);
+      return resolveKeyPath(
+        this.stagingFilesPath,
+        stripStagingPrefix(resourceKey),
+      );
     }
     const normalizedPath = normalizePath(path);
-    if (!normalizedPath) {
-      return join(this.filesPath, resourceKey);
-    }
-    return join(this.filesPath, normalizedPath, resourceKey);
+    const relativeKey = normalizedPath
+      ? `${normalizedPath}${KeySeparator}${resourceKey}`
+      : resourceKey;
+    return resolveKeyPath(this.filesPath, relativeKey);
   }
 
   async fileExists(resourceKey: string, path?: string): Promise<boolean> {
@@ -393,7 +409,7 @@ export class TokenManager {
   }
 
   private getMetadataPath(resourceKey: string): string {
-    return join(this.metadataPath, `${resourceKey}${JsonFileSuffix}`);
+    return `${resolveKeyPath(this.metadataPath, resourceKey)}${JsonFileSuffix}`;
   }
 
   private async readToken<T extends ReadToken>(
@@ -469,7 +485,7 @@ function extractFileExtension(filename: string): string {
     return "";
   }
   const extension = filename.split(DotCharacter).pop();
-  if (!extension) {
+  if (!extension || !SafeExtensionPattern.test(extension)) {
     return "";
   }
   return `${DotCharacter}${extension}`;

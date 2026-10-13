@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import assert from "node:assert/strict";
-import { writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import {
   CreateReadUrl,
   CreateUploadUrl,
@@ -14,7 +14,26 @@ const CONTENT = "private file bytes";
 const MIME = "text/plain";
 const READ_SECONDS = 60;
 const MILLISECONDS_PER_SECOND = 1000;
+const OutsideName = "outside";
+const EscapingDownloadKeys = [`../${OutsideName}`, `..\\${OutsideName}`];
+const DownloadPath = "/file-storage/files/";
 const created: string[] = [];
+
+async function seedOutsideStorageArea(): Promise<string> {
+  const outside = join(getConfig().storagePath, OutsideName);
+  await writeFile(
+    `${outside}.json`,
+    JSON.stringify({
+      resourceKey: EscapingDownloadKeys[0],
+      size: CONTENT.length,
+      mimetype: MIME,
+      lastModified: Date.now(),
+      visibility: "public",
+    }),
+  );
+  await writeFile(outside, CONTENT);
+  return outside;
+}
 
 describe("storage token boundaries", () => {
   afterEach(async () => {
@@ -47,6 +66,22 @@ describe("storage token boundaries", () => {
     const allowed = await fetch(signed.url);
     assert.equal(allowed.status, 200);
     assert.equal(await allowed.text(), CONTENT);
+  });
+
+  it("never serves a public file outside the storage area through an encoded key", async () => {
+    const outside = await seedOutsideStorageArea();
+    try {
+      for (const key of EscapingDownloadKeys) {
+        const response = await fetch(
+          `${getConfig().baseUrl}${DownloadPath}${encodeURIComponent(key)}`,
+        );
+        assert.notEqual(await response.text(), CONTENT, key);
+        assert.equal(response.status, 404, key);
+      }
+    } finally {
+      await rm(outside, { force: true });
+      await rm(`${outside}.json`, { force: true });
+    }
   });
 
   it("never reads or deletes metadata through upload or read token identifiers", async () => {

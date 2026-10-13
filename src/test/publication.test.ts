@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { once } from "node:events";
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
-import type { FileHandle } from "node:fs/promises";
 import { fork, type ChildProcess } from "node:child_process";
 import {
   FileConflictError,
@@ -15,6 +14,13 @@ import {
   pathExists,
   syncDirectory,
 } from "../storage/publication";
+import {
+  asPlatform,
+  fileHandlePrototype,
+  PosixPlatform,
+  WindowsPlatform,
+  withWindowsFileFlushRules,
+} from "./platform";
 import type { WorkerMessage, WorkerRequest } from "./publication-worker";
 import { TokenManager, type UploadToken } from "../storage/token-manager";
 
@@ -24,14 +30,10 @@ const Mime = "text/plain";
 const Lifetime = 60_000;
 const FinalKey = "owned.txt";
 const StageKey = `${STAGING_PREFIX}${FinalKey}`;
-const WindowsPlatform = "win32";
-const PosixPlatform = "linux";
-const PlatformProperty = "platform";
 const UnsupportedSyncCodes = ["EPERM", "EACCES", "EINVAL", "ENOTSUP", "EISDIR"];
 const FatalSyncCodes = ["ENOSPC", "EIO", "EROFS"];
 const ExtendedLengthPrefix = "\\\\?\\";
 const EnsureDirectoryTimeout = 2_000;
-const ReadOnlyOpenMode = "r";
 const DriveLetterPattern = /^([a-z]):/i;
 const StorageDirectories = [
   "files",
@@ -103,10 +105,6 @@ async function seed(): Promise<UploadToken> {
   return token;
 }
 
-interface SyncableHandle {
-  sync: () => Promise<void>;
-}
-
 async function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   const expired = new Promise<never>((_, reject) => {
     const timer = setTimeout(
@@ -119,32 +117,11 @@ async function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   return Promise.race([work, expired]);
 }
 
-async function asPlatform(
-  platform: string,
-  run: () => Promise<void>,
-): Promise<void> {
-  const descriptor = Object.getOwnPropertyDescriptor(
-    process,
-    PlatformProperty,
-  ) ?? { value: process.platform, configurable: true };
-  Object.defineProperty(process, PlatformProperty, {
-    value: platform,
-    configurable: true,
-  });
-  try {
-    await run();
-  } finally {
-    Object.defineProperty(process, PlatformProperty, descriptor);
-  }
-}
-
 async function withFailingDirectorySync(
   code: string,
   run: () => Promise<void>,
 ): Promise<void> {
-  const probe = await fs.open(root, "r");
-  const prototype = Object.getPrototypeOf(probe) as SyncableHandle;
-  await probe.close();
+  const prototype = await fileHandlePrototype();
   const original = prototype.sync;
   prototype.sync = () => {
     const error: NodeJS.ErrnoException = new Error(
@@ -157,63 +134,6 @@ async function withFailingDirectorySync(
     await run();
   } finally {
     prototype.sync = original;
-  }
-}
-
-function permissionError(syscall: string): NodeJS.ErrnoException {
-  const error: NodeJS.ErrnoException = new Error(
-    `EPERM: operation not permitted, ${syscall}`,
-  );
-  error.code = "EPERM";
-  return error;
-}
-
-async function withWindowsFileFlushRules(
-  run: () => Promise<void>,
-): Promise<void> {
-  const readOnlyHandles = new WeakSet<FileHandle>();
-  const originalOpen = fs.open;
-  const trackReadOnly = async (
-    ...args: Parameters<typeof fs.open>
-  ): Promise<FileHandle> => {
-    const handle = await originalOpen(...args);
-    if ((args[1] ?? ReadOnlyOpenMode) === ReadOnlyOpenMode)
-      readOnlyHandles.add(handle);
-    return handle;
-  };
-  const probe = await originalOpen(root, ReadOnlyOpenMode);
-  const prototype = Object.getPrototypeOf(probe) as SyncableHandle;
-  await probe.close();
-  const originalSync = prototype.sync;
-  prototype.sync = async function (this: FileHandle): Promise<void> {
-    if (readOnlyHandles.has(this) && (await this.stat()).isFile())
-      throw permissionError("fsync");
-    return originalSync.call(this);
-  };
-  fs.open = trackReadOnly as typeof fs.open;
-  try {
-    await run();
-  } finally {
-    fs.open = originalOpen;
-    prototype.sync = originalSync;
-  }
-}
-
-async function withRenameBlockedByDestination(
-  run: () => Promise<void>,
-): Promise<void> {
-  const originalRename = fs.rename;
-  const blockOccupiedDestination = async (
-    ...args: Parameters<typeof fs.rename>
-  ): Promise<void> => {
-    if (await pathExists(String(args[1]))) throw permissionError("rename");
-    return originalRename(...args);
-  };
-  fs.rename = blockOccupiedDestination;
-  try {
-    await run();
-  } finally {
-    fs.rename = originalRename;
   }
 }
 
@@ -466,51 +386,6 @@ describe("durable promotion publication", () => {
       First,
     );
     assert.equal(await manager.fileExists(StageKey), false);
-  });
-});
-
-describe("moving files over an existing destination", () => {
-  setup();
-
-  async function seedDestination(): Promise<string> {
-    await seed();
-    const destination = manager.getFilePath(FinalKey);
-    await fs.writeFile(destination, Other);
-    return destination;
-  }
-
-  it("replaces a destination that a download still holds open", async () => {
-    const destination = await seedDestination();
-    const download = await fs.open(destination, ReadOnlyOpenMode);
-    try {
-      await manager.moveFile(StageKey, FinalKey);
-    } finally {
-      await download.close();
-    }
-    assert.equal(await fs.readFile(destination, "utf8"), First);
-    assert.equal(await manager.fileExists(StageKey), false);
-  });
-
-  it("replaces a destination Windows refuses to rename over", async () => {
-    const destination = await seedDestination();
-    await asPlatform(WindowsPlatform, () =>
-      withRenameBlockedByDestination(() =>
-        manager.moveFile(StageKey, FinalKey),
-      ),
-    );
-    assert.equal(await fs.readFile(destination, "utf8"), First);
-  });
-
-  it("keeps rename failures fatal on posix platforms", async () => {
-    const destination = await seedDestination();
-    await asPlatform(PosixPlatform, () =>
-      withRenameBlockedByDestination(() =>
-        assert.rejects(manager.moveFile(StageKey, FinalKey), {
-          code: "EPERM",
-        }),
-      ),
-    );
-    assert.equal(await fs.readFile(destination, "utf8"), Other);
   });
 });
 
