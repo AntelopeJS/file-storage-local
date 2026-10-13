@@ -3,7 +3,10 @@ import { promises as fs } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 const WindowsPlatform = "win32";
-const ExtendedLengthPrefix = /^\\\\\?\\/;
+const NamespacePrefixes: ReadonlyArray<readonly [RegExp, string]> = [
+  [/^\\\\\?\\UNC\\/i, "\\\\"],
+  [/^\\\\\?\\/, ""],
+];
 const UnsupportedDirectorySyncCodes = new Set([
   "EPERM",
   "EACCES",
@@ -28,8 +31,13 @@ export async function ensureDirectory(path: string): Promise<void> {
   }
 }
 
+function stripNamespacePrefix(path: string): string {
+  const match = NamespacePrefixes.find(([prefix]) => prefix.test(path));
+  return match ? path.replace(match[0], match[1]) : path;
+}
+
 function comparablePath(path: string): string {
-  const resolved = resolve(path.replace(ExtendedLengthPrefix, ""));
+  const resolved = resolve(stripNamespacePrefix(path));
   return process.platform === WindowsPlatform
     ? resolved.toLowerCase()
     : resolved;

@@ -10,7 +10,11 @@ import {
   STAGING_PREFIX,
 } from "@antelopejs/interface-file-storage";
 
-import { ensureDirectory, syncDirectory } from "../storage/publication";
+import {
+  ensureDirectory,
+  pathExists,
+  syncDirectory,
+} from "../storage/publication";
 import type { WorkerMessage, WorkerRequest } from "./publication-worker";
 import { TokenManager, type UploadToken } from "../storage/token-manager";
 
@@ -28,6 +32,13 @@ const FatalSyncCodes = ["ENOSPC", "EIO", "EROFS"];
 const ExtendedLengthPrefix = "\\\\?\\";
 const EnsureDirectoryTimeout = 2_000;
 const ReadOnlyOpenMode = "r";
+const DriveLetterPattern = /^([a-z]):/i;
+const StorageDirectories = [
+  "files",
+  "metadata",
+  join("tokens", "upload"),
+  join("tokens", "read"),
+];
 let root: string;
 let manager: TokenManager;
 const children = new Set<ChildProcess>();
@@ -186,6 +197,28 @@ async function withWindowsFileFlushRules(
     fs.open = originalOpen;
     prototype.sync = originalSync;
   }
+}
+
+function administrativeSharePath(path: string): string | null {
+  const drive = DriveLetterPattern.exec(path);
+  if (process.platform !== WindowsPlatform || !drive) return null;
+  return `\\\\localhost\\${drive[1]}$${path.slice(drive[0].length)}`;
+}
+
+async function recordOpenedPaths(run: () => Promise<void>): Promise<string[]> {
+  const opened: string[] = [];
+  const originalOpen = fs.open;
+  const recordOpen = (...args: Parameters<typeof fs.open>) => {
+    opened.push(String(args[0]));
+    return originalOpen(...args);
+  };
+  fs.open = recordOpen as typeof fs.open;
+  try {
+    await run();
+  } finally {
+    fs.open = originalOpen;
+  }
+  return opened;
 }
 
 function setup(): void {
@@ -459,6 +492,31 @@ describe("directory durability across platforms", () => {
     } finally {
       fs.mkdir = original;
     }
+    assert.ok((await fs.stat(target)).isDirectory());
+  });
+
+  it("initializes an empty storage root with the real filesystem", async () => {
+    const storage = join(root, "fresh", "storage");
+    await withTimeout(
+      new TokenManager(storage).initialize(),
+      EnsureDirectoryTimeout,
+    );
+    for (const directory of StorageDirectories)
+      assert.ok((await fs.stat(join(storage, directory))).isDirectory());
+  });
+
+  it("stops at the created directory on a UNC share", async function () {
+    const share = administrativeSharePath(root);
+    if (!share || !(await pathExists(share))) return this.skip();
+    const target = join(share, "unc", "nested");
+    const opened = await recordOpenedPaths(() =>
+      withTimeout(ensureDirectory(target), EnsureDirectoryTimeout),
+    );
+    const prefix = share.toLowerCase();
+    assert.deepEqual(
+      opened.filter((path) => !path.toLowerCase().startsWith(prefix)),
+      [],
+    );
     assert.ok((await fs.stat(target)).isDirectory());
   });
 
