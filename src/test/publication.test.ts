@@ -199,6 +199,24 @@ async function withWindowsFileFlushRules(
   }
 }
 
+async function withRenameBlockedByDestination(
+  run: () => Promise<void>,
+): Promise<void> {
+  const originalRename = fs.rename;
+  const blockOccupiedDestination = async (
+    ...args: Parameters<typeof fs.rename>
+  ): Promise<void> => {
+    if (await pathExists(String(args[1]))) throw permissionError("rename");
+    return originalRename(...args);
+  };
+  fs.rename = blockOccupiedDestination;
+  try {
+    await run();
+  } finally {
+    fs.rename = originalRename;
+  }
+}
+
 function administrativeSharePath(path: string): string | null {
   const drive = DriveLetterPattern.exec(path);
   if (process.platform !== WindowsPlatform || !drive) return null;
@@ -448,6 +466,51 @@ describe("durable promotion publication", () => {
       First,
     );
     assert.equal(await manager.fileExists(StageKey), false);
+  });
+});
+
+describe("moving files over an existing destination", () => {
+  setup();
+
+  async function seedDestination(): Promise<string> {
+    await seed();
+    const destination = manager.getFilePath(FinalKey);
+    await fs.writeFile(destination, Other);
+    return destination;
+  }
+
+  it("replaces a destination that a download still holds open", async () => {
+    const destination = await seedDestination();
+    const download = await fs.open(destination, ReadOnlyOpenMode);
+    try {
+      await manager.moveFile(StageKey, FinalKey);
+    } finally {
+      await download.close();
+    }
+    assert.equal(await fs.readFile(destination, "utf8"), First);
+    assert.equal(await manager.fileExists(StageKey), false);
+  });
+
+  it("replaces a destination Windows refuses to rename over", async () => {
+    const destination = await seedDestination();
+    await asPlatform(WindowsPlatform, () =>
+      withRenameBlockedByDestination(() =>
+        manager.moveFile(StageKey, FinalKey),
+      ),
+    );
+    assert.equal(await fs.readFile(destination, "utf8"), First);
+  });
+
+  it("keeps rename failures fatal on posix platforms", async () => {
+    const destination = await seedDestination();
+    await asPlatform(PosixPlatform, () =>
+      withRenameBlockedByDestination(() =>
+        assert.rejects(manager.moveFile(StageKey, FinalKey), {
+          code: "EPERM",
+        }),
+      ),
+    );
+    assert.equal(await fs.readFile(destination, "utf8"), Other);
   });
 });
 

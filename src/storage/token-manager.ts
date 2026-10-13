@@ -20,6 +20,7 @@ import {
   publishFile,
   publishJson,
   removeFile,
+  replaceFile,
 } from "./publication";
 
 export const FilenameMetadataKey = "filename";
@@ -291,7 +292,7 @@ export class TokenManager {
     const sourceFilePath = this.getFilePath(sourceKey, sourceMetadata?.path);
     const destFilePath = this.getFilePath(destKey);
     await fs.mkdir(dirname(destFilePath), { recursive: true });
-    await fs.rename(sourceFilePath, destFilePath);
+    await replaceFile(sourceFilePath, destFilePath);
     await this.relocateMetadata(sourceKey, destKey, sourceMetadata);
   }
 

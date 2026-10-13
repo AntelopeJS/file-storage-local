@@ -14,6 +14,7 @@ const UnsupportedDirectorySyncCodes = new Set([
   "ENOTSUP",
   "EISDIR",
 ]);
+const BlockedReplaceCodes = new Set(["EPERM", "EACCES", "EBUSY"]);
 
 export async function ensureDirectory(path: string): Promise<void> {
   const created = await fs.mkdir(path, { recursive: true });
@@ -48,16 +49,33 @@ export async function syncDirectory(path: string): Promise<void> {
   try {
     await directory.sync();
   } catch (error: unknown) {
-    if (!isUnsupportedDirectorySync(error)) throw error;
+    if (!isWindowsError(error, UnsupportedDirectorySyncCodes)) throw error;
   } finally {
     await directory.close();
   }
 }
 
-function isUnsupportedDirectorySync(error: unknown): boolean {
+function isWindowsError(error: unknown, codes: ReadonlySet<string>): boolean {
   if (process.platform !== WindowsPlatform) return false;
   const code = errorCode(error);
-  return code !== undefined && UnsupportedDirectorySyncCodes.has(code);
+  return code !== undefined && codes.has(code);
+}
+
+export async function replaceFile(
+  source: string,
+  destination: string,
+): Promise<void> {
+  try {
+    await fs.rename(source, destination);
+  } catch (error: unknown) {
+    if (
+      !isWindowsError(error, BlockedReplaceCodes) ||
+      !(await pathExists(destination))
+    )
+      throw error;
+    await removeFile(destination);
+    await fs.rename(source, destination);
+  }
 }
 
 export async function prepareFile(
