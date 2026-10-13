@@ -3,11 +3,18 @@ import { join } from "node:path";
 const KeySeparator = "/";
 const RelativeSegments = new Set([".", ".."]);
 const NullCharacter = "\0";
-const WindowsForbiddenCharacters = /[<>:"\\|?*\u0000-\u001f]/;
+const WindowsForbiddenCharacters = /[<>:"\\|?*]/;
 const WindowsTrailingCharacters = /[. ]$/;
 const WindowsReservedNames = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
+const FirstPrintableCode = 0x20;
 
 type SegmentRule = (segment: string) => boolean;
+
+function hasControlCharacter(segment: string): boolean {
+  return Array.from(segment).some(
+    (character) => character.charCodeAt(0) < FirstPrintableCode,
+  );
+}
 
 const PortableRules: SegmentRule[] = [
   (segment) => RelativeSegments.has(segment),
@@ -17,6 +24,7 @@ const PortableRules: SegmentRule[] = [
 const PlatformRules: Record<string, SegmentRule[]> = {
   win32: [
     (segment) => WindowsForbiddenCharacters.test(segment),
+    hasControlCharacter,
     (segment) => WindowsTrailingCharacters.test(segment),
     (segment) => WindowsReservedNames.test(segment),
   ],

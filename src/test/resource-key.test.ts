@@ -41,6 +41,7 @@ const WindowsUnstorableKeys = [
   "media/2026-10-13T10:00/file.txt",
   "media/file.txt:stream",
   "media/what?/file.txt",
+  "media/tab\tname/file.txt",
   "media/CON/file.txt",
   "media/nul.txt",
   "media/trailing./file.txt",
@@ -63,7 +64,10 @@ async function upload(resourceKey: string, path?: string): Promise<void> {
 }
 
 async function assertUnstorable(resourceKey: string): Promise<void> {
-  assert.throws(() => manager.getFilePath(resourceKey), InvalidResourceKeyError);
+  assert.throws(
+    () => manager.getFilePath(resourceKey),
+    InvalidResourceKeyError,
+  );
   assert.equal(await manager.getFileMetadata(resourceKey), null);
   assert.equal(await manager.fileExists(resourceKey), false);
   await assert.rejects(upload(resourceKey), InvalidResourceKeyError);
