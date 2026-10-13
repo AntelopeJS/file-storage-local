@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { once } from "node:events";
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
+import type { FileHandle } from "node:fs/promises";
 import { fork, type ChildProcess } from "node:child_process";
 import {
   FileConflictError,
@@ -26,6 +27,7 @@ const UnsupportedSyncCodes = ["EPERM", "EACCES", "EINVAL", "ENOTSUP", "EISDIR"];
 const FatalSyncCodes = ["ENOSPC", "EIO", "EROFS"];
 const ExtendedLengthPrefix = "\\\\?\\";
 const EnsureDirectoryTimeout = 2_000;
+const ReadOnlyOpenMode = "r";
 let root: string;
 let manager: TokenManager;
 const children = new Set<ChildProcess>();
@@ -144,6 +146,45 @@ async function withFailingDirectorySync(
     await run();
   } finally {
     prototype.sync = original;
+  }
+}
+
+function permissionError(syscall: string): NodeJS.ErrnoException {
+  const error: NodeJS.ErrnoException = new Error(
+    `EPERM: operation not permitted, ${syscall}`,
+  );
+  error.code = "EPERM";
+  return error;
+}
+
+async function withWindowsFileFlushRules(
+  run: () => Promise<void>,
+): Promise<void> {
+  const readOnlyHandles = new WeakSet<FileHandle>();
+  const originalOpen = fs.open;
+  const trackReadOnly = async (
+    ...args: Parameters<typeof fs.open>
+  ): Promise<FileHandle> => {
+    const handle = await originalOpen(...args);
+    if ((args[1] ?? ReadOnlyOpenMode) === ReadOnlyOpenMode)
+      readOnlyHandles.add(handle);
+    return handle;
+  };
+  const probe = await originalOpen(root, ReadOnlyOpenMode);
+  const prototype = Object.getPrototypeOf(probe) as SyncableHandle;
+  await probe.close();
+  const originalSync = prototype.sync;
+  prototype.sync = async function (this: FileHandle): Promise<void> {
+    if (readOnlyHandles.has(this) && (await this.stat()).isFile())
+      throw permissionError("fsync");
+    return originalSync.call(this);
+  };
+  fs.open = trackReadOnly as typeof fs.open;
+  try {
+    await run();
+  } finally {
+    fs.open = originalOpen;
+    prototype.sync = originalSync;
   }
 }
 
@@ -362,6 +403,18 @@ describe("durable promotion publication", () => {
       await fs.readFile(manager.getFilePath(StageKey), "utf8"),
       First,
     );
+  });
+
+  it("flushes staged bytes through a handle Windows accepts for fsync", async () => {
+    await seed();
+    await withWindowsFileFlushRules(async () => {
+      assert.equal(await manager.promoteFile(StageKey), FinalKey);
+    });
+    assert.equal(
+      await fs.readFile(manager.getFilePath(FinalKey), "utf8"),
+      First,
+    );
+    assert.equal(await manager.fileExists(StageKey), false);
   });
 });
 
