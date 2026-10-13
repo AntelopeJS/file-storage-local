@@ -1,8 +1,8 @@
 import { promises as fs } from "node:fs";
-import { relative, sep } from "node:path";
 import { Logging } from "@antelopejs/interface-core/logging";
 import { ImplementInterface } from "@antelopejs/interface-core";
 
+import { rootsOverlap } from "./storage/storage-roots";
 import { TokenManager } from "./storage/token-manager";
 import {
   clearModuleState,
@@ -82,11 +82,7 @@ async function assertDistinctRoots(entries: StorageEntry[]): Promise<void> {
   const canonical = await Promise.all(roots.map((root) => fs.realpath(root)));
   canonical.forEach((root, index) => {
     canonical.slice(index + 1).forEach((candidate) => {
-      const relation = relative(root, candidate);
-      const reverse = relative(candidate, root);
-      const overlaps = (value: string) =>
-        !value || (!value.startsWith(`..${sep}`) && value !== "..");
-      if (overlaps(relation) || overlaps(reverse))
+      if (rootsOverlap(root, candidate))
         throw new Error("Configured storage roots must not overlap");
     });
   });
