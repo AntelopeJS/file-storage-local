@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.1.8
+
+[compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.7...v0.1.8)
+
+### 🩹 Fixes
+
+- Make the local storage work on Windows ([#30](https://github.com/AntelopeJS/file-storage-local/pull/30))
+
+### ❤️ Contributors
+
+- Maxime Westhoven ([@mwesto](http://github.com/mwesto))
+
 ## v0.1.7
 
 [compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.6...v0.1.7)
