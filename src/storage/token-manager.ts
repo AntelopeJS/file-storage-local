@@ -6,8 +6,8 @@ import {
   FileNotFoundError,
   isStagedKey,
   STAGING_PREFIX,
+  stripStagingPrefix,
   toStagedKey,
-  UploadValidationError,
   type Visibility,
 } from "@antelopejs/interface-file-storage";
 
@@ -20,7 +20,10 @@ import {
   publishFile,
   publishJson,
   removeFile,
+  replaceFile,
 } from "./publication";
+import { isStorableKey, resolveKeyPath } from "./resource-key";
+import { exactSizeChunks, type UploadBody } from "./upload-body";
 
 export const FilenameMetadataKey = "filename";
 
@@ -33,6 +36,8 @@ const ConsumedTokensDirectory = "consumed";
 const JsonFileSuffix = ".json";
 const PathTrimRegex = /^\/|\/$/g;
 const DotCharacter = ".";
+const KeySeparator = "/";
+const SafeExtensionPattern = /^[\p{L}\p{N}_-]{1,16}$/u;
 const TokenIdentifierPattern = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
 export interface UploadToken {
@@ -112,7 +117,9 @@ export class TokenManager {
 
   toStagedResourceKey(baseKey: string, path?: string): string {
     const normalizedPath = normalizePath(path);
-    const inner = normalizedPath ? `${normalizedPath}/${baseKey}` : baseKey;
+    const inner = normalizedPath
+      ? `${normalizedPath}${KeySeparator}${baseKey}`
+      : baseKey;
     return toStagedKey(inner);
   }
 
@@ -125,6 +132,7 @@ export class TokenManager {
     path?: string,
     visibility?: Visibility,
   ): Promise<UploadToken> {
+    this.assertStorable(resourceKey, path);
     const data: UploadToken = {
       token: this.generateToken(),
       resourceKey,
@@ -145,6 +153,11 @@ export class TokenManager {
     return data;
   }
 
+  private assertStorable(resourceKey: string, path?: string): void {
+    this.getFilePath(resourceKey, path);
+    this.getMetadataPath(resourceKey);
+  }
+
   async getUploadToken(token: string): Promise<UploadToken | null> {
     return this.readToken<UploadToken>(token, this.getUploadTokenPath(token));
   }
@@ -154,17 +167,17 @@ export class TokenManager {
     await this.unlinkIfExists(this.getUploadTokenPath(token));
   }
 
-  async saveUpload(token: string, body: Buffer): Promise<void> {
+  async saveUpload(token: string, body: UploadBody): Promise<void> {
     const upload = await this.getUploadToken(token);
     if (!upload || upload.expiresAt < Date.now())
       throw new FileNotFoundError(token);
     if (await pathExists(this.consumedTokenPath(token)))
       throw new FileConflictError(upload.resourceKey);
-    if (body.length !== upload.size) {
-      throw new UploadValidationError("Body size mismatch", "SIZE_EXCEEDED");
-    }
     const destination = this.getFilePath(upload.resourceKey, upload.path);
-    const temporary = await prepareFile(destination, body);
+    const temporary = await prepareFile(
+      destination,
+      exactSizeChunks(body, upload.size),
+    );
     try {
       await this.consumeUpload(upload);
       if (await pathExists(destination))
@@ -235,6 +248,7 @@ export class TokenManager {
   async getFileMetadata(
     resourceKey: string,
   ): Promise<StoredFileMetadata | null> {
+    if (!isStorableKey(resourceKey)) return null;
     const metadata = await this.readJsonFile<StoredFileMetadata>(
       this.getMetadataPath(resourceKey),
     );
@@ -249,13 +263,16 @@ export class TokenManager {
 
   getFilePath(resourceKey: string, path?: string): string {
     if (isStagedKey(resourceKey)) {
-      return join(this.storagePath, resourceKey);
+      return resolveKeyPath(
+        this.stagingFilesPath,
+        stripStagingPrefix(resourceKey),
+      );
     }
     const normalizedPath = normalizePath(path);
-    if (!normalizedPath) {
-      return join(this.filesPath, resourceKey);
-    }
-    return join(this.filesPath, normalizedPath, resourceKey);
+    const relativeKey = normalizedPath
+      ? `${normalizedPath}${KeySeparator}${resourceKey}`
+      : resourceKey;
+    return resolveKeyPath(this.filesPath, relativeKey);
   }
 
   async fileExists(resourceKey: string, path?: string): Promise<boolean> {
@@ -291,7 +308,7 @@ export class TokenManager {
     const sourceFilePath = this.getFilePath(sourceKey, sourceMetadata?.path);
     const destFilePath = this.getFilePath(destKey);
     await fs.mkdir(dirname(destFilePath), { recursive: true });
-    await fs.rename(sourceFilePath, destFilePath);
+    await replaceFile(sourceFilePath, destFilePath);
     await this.relocateMetadata(sourceKey, destKey, sourceMetadata);
   }
 
@@ -392,7 +409,7 @@ export class TokenManager {
   }
 
   private getMetadataPath(resourceKey: string): string {
-    return join(this.metadataPath, `${resourceKey}${JsonFileSuffix}`);
+    return `${resolveKeyPath(this.metadataPath, resourceKey)}${JsonFileSuffix}`;
   }
 
   private async readToken<T extends ReadToken>(
@@ -468,7 +485,7 @@ function extractFileExtension(filename: string): string {
     return "";
   }
   const extension = filename.split(DotCharacter).pop();
-  if (!extension) {
+  if (!extension || !SafeExtensionPattern.test(extension)) {
     return "";
   }
   return `${DotCharacter}${extension}`;

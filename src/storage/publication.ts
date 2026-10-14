@@ -3,7 +3,10 @@ import { promises as fs } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 const WindowsPlatform = "win32";
-const ExtendedLengthPrefix = /^\\\\\?\\/;
+const NamespacePrefixes: ReadonlyArray<readonly [RegExp, string]> = [
+  [/^\\\\\?\\UNC\\/i, "\\\\"],
+  [/^\\\\\?\\/, ""],
+];
 const UnsupportedDirectorySyncCodes = new Set([
   "EPERM",
   "EACCES",
@@ -11,6 +14,7 @@ const UnsupportedDirectorySyncCodes = new Set([
   "ENOTSUP",
   "EISDIR",
 ]);
+const BlockedReplaceCodes = new Set(["EPERM", "EACCES", "EBUSY"]);
 
 export async function ensureDirectory(path: string): Promise<void> {
   const created = await fs.mkdir(path, { recursive: true });
@@ -28,8 +32,13 @@ export async function ensureDirectory(path: string): Promise<void> {
   }
 }
 
+function stripNamespacePrefix(path: string): string {
+  const match = NamespacePrefixes.find(([prefix]) => prefix.test(path));
+  return match ? path.replace(match[0], match[1]) : path;
+}
+
 function comparablePath(path: string): string {
-  const resolved = resolve(path.replace(ExtendedLengthPrefix, ""));
+  const resolved = resolve(stripNamespacePrefix(path));
   return process.platform === WindowsPlatform
     ? resolved.toLowerCase()
     : resolved;
@@ -40,27 +49,44 @@ export async function syncDirectory(path: string): Promise<void> {
   try {
     await directory.sync();
   } catch (error: unknown) {
-    if (!isUnsupportedDirectorySync(error)) throw error;
+    if (!isWindowsError(error, UnsupportedDirectorySyncCodes)) throw error;
   } finally {
     await directory.close();
   }
 }
 
-function isUnsupportedDirectorySync(error: unknown): boolean {
+function isWindowsError(error: unknown, codes: ReadonlySet<string>): boolean {
   if (process.platform !== WindowsPlatform) return false;
   const code = errorCode(error);
-  return code !== undefined && UnsupportedDirectorySyncCodes.has(code);
+  return code !== undefined && codes.has(code);
+}
+
+export async function replaceFile(
+  source: string,
+  destination: string,
+): Promise<void> {
+  try {
+    await fs.rename(source, destination);
+  } catch (error: unknown) {
+    if (
+      !isWindowsError(error, BlockedReplaceCodes) ||
+      !(await pathExists(destination))
+    )
+      throw error;
+    await removeFile(destination);
+    await fs.rename(source, destination);
+  }
 }
 
 export async function prepareFile(
   path: string,
-  data: Uint8Array | string,
+  data: string | Uint8Array | AsyncIterable<Uint8Array>,
 ): Promise<string> {
   await ensureDirectory(dirname(path));
   const temporary = `${path}.${randomUUID()}.tmp`;
   const handle = await fs.open(temporary, "wx");
   try {
-    await handle.writeFile(data);
+    await fs.writeFile(handle, data);
     await handle.sync();
     return temporary;
   } catch (error: unknown) {

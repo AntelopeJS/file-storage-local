@@ -1,9 +1,11 @@
 import { promises as fs } from "node:fs";
+import type { IncomingMessage } from "node:http";
 import type { PassThrough } from "node:stream";
 import { Logging } from "@antelopejs/interface-core/logging";
 import {
   FileConflictError,
   FileNotFoundError,
+  UploadValidationError,
 } from "@antelopejs/interface-file-storage";
 import {
   Context,
@@ -12,7 +14,6 @@ import {
   HTTPResult,
   Parameter,
   Put,
-  RawBody,
   type RequestContext,
   WriteStream,
 } from "@antelopejs/interface-api";
@@ -24,6 +25,16 @@ import {
   resolveContentType,
   resolveDownloadFilename,
 } from "./download-headers";
+
+const RequestBodyIteration = { destroyOnReturn: false };
+
+function streamRequestBody(
+  request: IncomingMessage,
+): AsyncIterable<Uint8Array> {
+  return {
+    [Symbol.asyncIterator]: () => request.iterator(RequestBodyIteration),
+  };
+}
 
 /**
  * File Storage HTTP Controller
@@ -48,8 +59,7 @@ export class FileStorageController extends Controller("file-storage") {
     @Parameter("content-type", "header") contentType: string | undefined,
     @Parameter("content-length", "header") contentLength: string | undefined,
     @Parameter("storage", "query") storage: string | undefined,
-    @RawBody() body: Buffer,
-    @Context() _context: RequestContext,
+    @Context() context: RequestContext,
   ): Promise<HTTPResult> {
     const tokenManager = getTokenManager(storage);
 
@@ -74,12 +84,10 @@ export class FileStorageController extends Controller("file-storage") {
       });
     }
 
-    // Validate Content-Length (must match exactly)
+    // Validate Content-Length when declared (must match exactly)
     const expectedSize = uploadToken.size;
-    const receivedSize = contentLength
-      ? parseInt(contentLength, 10)
-      : body.length;
-
+    const receivedSize =
+      contentLength === undefined ? expectedSize : parseInt(contentLength, 10);
     if (receivedSize !== expectedSize) {
       return new HTTPResult(403, {
         error: "Content-Length mismatch",
@@ -88,29 +96,35 @@ export class FileStorageController extends Controller("file-storage") {
       });
     }
 
-    // Validate actual body size
-    if (body.length !== expectedSize) {
-      return new HTTPResult(403, {
-        error: "Body size mismatch",
-        expected: expectedSize,
-        received: body.length,
-      });
-    }
-
     try {
-      await tokenManager.saveUpload(token, body);
+      // Stream the body to disk: the token size bounds what is accepted,
+      // whatever the API module's default request body limit is.
+      await tokenManager.saveUpload(
+        token,
+        streamRequestBody(context.rawRequest),
+      );
 
       return new HTTPResult(200, {
         success: true,
         resourceKey: uploadToken.resourceKey,
       });
     } catch (error: unknown) {
+      if (error instanceof UploadValidationError)
+        return new HTTPResult(403, {
+          error: "Body size mismatch",
+          expected: expectedSize,
+        });
       if (error instanceof FileConflictError)
         return new HTTPResult(409, { error: error.message });
       if (error instanceof FileNotFoundError)
         return new HTTPResult(403, { error: "Token expired" });
+      if (context.rawRequest.errored)
+        return new HTTPResult(400, { error: "Upload aborted" });
       Logging.Error("File upload error:", error);
       return new HTTPResult(500, { error: "Failed to save file" });
+    } finally {
+      // Discard any unread body so the client receives the response.
+      context.rawRequest.resume();
     }
   }
 

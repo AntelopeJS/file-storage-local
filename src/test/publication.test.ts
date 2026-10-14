@@ -9,7 +9,18 @@ import {
   STAGING_PREFIX,
 } from "@antelopejs/interface-file-storage";
 
-import { ensureDirectory, syncDirectory } from "../storage/publication";
+import {
+  ensureDirectory,
+  pathExists,
+  syncDirectory,
+} from "../storage/publication";
+import {
+  asPlatform,
+  fileHandlePrototype,
+  PosixPlatform,
+  WindowsPlatform,
+  withWindowsFileFlushRules,
+} from "./platform";
 import type { WorkerMessage, WorkerRequest } from "./publication-worker";
 import { TokenManager, type UploadToken } from "../storage/token-manager";
 
@@ -19,13 +30,17 @@ const Mime = "text/plain";
 const Lifetime = 60_000;
 const FinalKey = "owned.txt";
 const StageKey = `${STAGING_PREFIX}${FinalKey}`;
-const WindowsPlatform = "win32";
-const PosixPlatform = "linux";
-const PlatformProperty = "platform";
 const UnsupportedSyncCodes = ["EPERM", "EACCES", "EINVAL", "ENOTSUP", "EISDIR"];
 const FatalSyncCodes = ["ENOSPC", "EIO", "EROFS"];
 const ExtendedLengthPrefix = "\\\\?\\";
 const EnsureDirectoryTimeout = 2_000;
+const DriveLetterPattern = /^([a-z]):/i;
+const StorageDirectories = [
+  "files",
+  "metadata",
+  join("tokens", "upload"),
+  join("tokens", "read"),
+];
 let root: string;
 let manager: TokenManager;
 const children = new Set<ChildProcess>();
@@ -90,10 +105,6 @@ async function seed(): Promise<UploadToken> {
   return token;
 }
 
-interface SyncableHandle {
-  sync: () => Promise<void>;
-}
-
 async function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   const expired = new Promise<never>((_, reject) => {
     const timer = setTimeout(
@@ -106,32 +117,11 @@ async function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   return Promise.race([work, expired]);
 }
 
-async function asPlatform(
-  platform: string,
-  run: () => Promise<void>,
-): Promise<void> {
-  const descriptor = Object.getOwnPropertyDescriptor(
-    process,
-    PlatformProperty,
-  ) ?? { value: process.platform, configurable: true };
-  Object.defineProperty(process, PlatformProperty, {
-    value: platform,
-    configurable: true,
-  });
-  try {
-    await run();
-  } finally {
-    Object.defineProperty(process, PlatformProperty, descriptor);
-  }
-}
-
 async function withFailingDirectorySync(
   code: string,
   run: () => Promise<void>,
 ): Promise<void> {
-  const probe = await fs.open(root, "r");
-  const prototype = Object.getPrototypeOf(probe) as SyncableHandle;
-  await probe.close();
+  const prototype = await fileHandlePrototype();
   const original = prototype.sync;
   prototype.sync = () => {
     const error: NodeJS.ErrnoException = new Error(
@@ -145,6 +135,28 @@ async function withFailingDirectorySync(
   } finally {
     prototype.sync = original;
   }
+}
+
+function administrativeSharePath(path: string): string | null {
+  const drive = DriveLetterPattern.exec(path);
+  if (process.platform !== WindowsPlatform || !drive) return null;
+  return `\\\\localhost\\${drive[1]}$${path.slice(drive[0].length)}`;
+}
+
+async function recordOpenedPaths(run: () => Promise<void>): Promise<string[]> {
+  const opened: string[] = [];
+  const originalOpen = fs.open;
+  const recordOpen = (...args: Parameters<typeof fs.open>) => {
+    opened.push(String(args[0]));
+    return originalOpen(...args);
+  };
+  fs.open = recordOpen as typeof fs.open;
+  try {
+    await run();
+  } finally {
+    fs.open = originalOpen;
+  }
+  return opened;
 }
 
 function setup(): void {
@@ -363,6 +375,18 @@ describe("durable promotion publication", () => {
       First,
     );
   });
+
+  it("flushes staged bytes through a handle Windows accepts for fsync", async () => {
+    await seed();
+    await withWindowsFileFlushRules(async () => {
+      assert.equal(await manager.promoteFile(StageKey), FinalKey);
+    });
+    assert.equal(
+      await fs.readFile(manager.getFilePath(FinalKey), "utf8"),
+      First,
+    );
+    assert.equal(await manager.fileExists(StageKey), false);
+  });
 });
 
 describe("directory durability across platforms", () => {
@@ -406,6 +430,31 @@ describe("directory durability across platforms", () => {
     } finally {
       fs.mkdir = original;
     }
+    assert.ok((await fs.stat(target)).isDirectory());
+  });
+
+  it("initializes an empty storage root with the real filesystem", async () => {
+    const storage = join(root, "fresh", "storage");
+    await withTimeout(
+      new TokenManager(storage).initialize(),
+      EnsureDirectoryTimeout,
+    );
+    for (const directory of StorageDirectories)
+      assert.ok((await fs.stat(join(storage, directory))).isDirectory());
+  });
+
+  it("stops at the created directory on a UNC share", async function () {
+    const share = administrativeSharePath(root);
+    if (!share || !(await pathExists(share))) return this.skip();
+    const target = join(share, "unc", "nested");
+    const opened = await recordOpenedPaths(() =>
+      withTimeout(ensureDirectory(target), EnsureDirectoryTimeout),
+    );
+    const prefix = share.toLowerCase();
+    assert.deepEqual(
+      opened.filter((path) => !path.toLowerCase().startsWith(prefix)),
+      [],
+    );
     assert.ok((await fs.stat(target)).isDirectory());
   });
 

@@ -1,6 +1,9 @@
 import { promises as fs } from "node:fs";
+import { sep } from "node:path";
 
 import { TokenManager } from "../storage/token-manager";
+
+const BarrierSeparator = "/";
 
 export interface WorkerRequest {
   root: string;
@@ -24,10 +27,16 @@ async function pause(): Promise<void> {
   );
 }
 
+function toBarrierPath(path: string): string {
+  return path.split(sep).join(BarrierSeparator);
+}
+
 async function run(request: WorkerRequest): Promise<void> {
   const link = fs.link;
   fs.link = async (source, destination) => {
-    const matches = destination.toString().endsWith(request.barrier);
+    const matches = toBarrierPath(destination.toString()).endsWith(
+      request.barrier,
+    );
     if (matches && !request.afterLink) await pause();
     await link(source, destination);
     if (matches && request.afterLink) await pause();

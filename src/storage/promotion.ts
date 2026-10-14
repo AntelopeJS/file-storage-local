@@ -17,17 +17,18 @@ import {
   removeFile,
   syncDirectory,
 } from "./publication";
+import { isStorableKey } from "./resource-key";
 
 const MetadataSuffix = ".json";
+const FlushableOpenMode = "r+";
 
 function destinationKey(sourceKey: string): string {
   const destination = stripStagingPrefix(sourceKey);
   if (
     !destination ||
     isStagedKey(destination) ||
-    destination
-      .split("/")
-      .some((part) => !part || part === "." || part === "..") ||
+    !isStorableKey(destination) ||
+    destination.split("/").some((part) => !part) ||
     destination.includes("\\")
   ) {
     throw new FileConflictError(sourceKey);
@@ -92,7 +93,7 @@ async function publishData(
   const sourcePath = manager.getFilePath(sourceKey, source.path);
   const destinationPath = manager.getFilePath(destination);
   await ensureDirectory(dirname(destinationPath));
-  const handle = await fs.open(sourcePath, "r");
+  const handle = await fs.open(sourcePath, FlushableOpenMode);
   try {
     const stat = await handle.stat();
     if (!stat.isFile() || stat.size !== source.size)

@@ -84,6 +84,20 @@ config: {
 
 Storage roots must not overlap. The name `default` is reserved.
 
+## Resource keys
+
+Resource keys and upload `path` values are `/`-separated and must stay inside
+their storage root: `.` and `..` segments are rejected on every platform. On
+Windows, segments that contain `< > : " \ | ? *` or control characters, end
+with a dot or a space, or use a reserved device name such as `CON`, `NUL` or
+`COM1` are rejected as well, because Windows cannot store them. Generated keys
+keep the uploaded filename extension only when it is made of letters, digits,
+`_` or `-` (16 characters at most).
+
+On Windows, storage roots must live on a filesystem that supports hard links,
+such as NTFS (not FAT32 or exFAT), and keys that differ only by letter case
+address the same file.
+
 ## Development
 
 ```bash
