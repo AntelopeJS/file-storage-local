@@ -106,6 +106,11 @@ The client sends the file with `PUT upload.uploadUrl` and the returned `upload.h
 - Generated keys keep the uploaded file's extension only when it has at most 16 letters, digits, `_` or `-`.
 - On Windows, storage folders must be on a filesystem with hard links, such as NTFS. Keys that differ only by letter case address the same file, and segments Windows cannot store (reserved characters, trailing dots or spaces, device names such as `CON` or `NUL`) are rejected.
 
+## Documentation
+
+- [File storage](https://github.com/AntelopeJS/interface-file-storage/tree/main/docs): the `@antelopejs/interface-file-storage` contract this module implements
+- [Configuration](https://framework.antelopejs.com/docs/concepts/configuration): module sources, `config` blocks and config variables in `antelope.config.ts`
+
 ## Compatibility
 
 | Package                              | Supported range   |
