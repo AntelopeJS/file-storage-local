@@ -1,116 +1,133 @@
 # @antelopejs/file-storage-local
 
 <div align="center">
-<a href="https://www.npmjs.com/package/@antelopejs/file-storage-local"><img alt="NPM version" src="https://img.shields.io/npm/v/@antelopejs/file-storage-local.svg?style=for-the-badge&labelColor=000000"></a>
-<a href="./LICENSE"><img alt="License" src="https://img.shields.io/npm/l/@antelopejs/file-storage-local.svg?style=for-the-badge&labelColor=000000"></a>
+<a href="https://www.npmjs.com/package/@antelopejs/file-storage-local"><img alt="npm" src="https://img.shields.io/npm/v/@antelopejs/file-storage-local?style=for-the-badge&labelColor=000000&color=000000"></a>
+<a href="./LICENSE"><img alt="License" src="https://img.shields.io/npm/l/@antelopejs/file-storage-local?style=for-the-badge&labelColor=000000&color=000000"></a>
 <a href="https://discord.gg/sjK28QHrA7"><img src="https://img.shields.io/badge/Discord-18181B?logo=discord&style=for-the-badge&color=000000" alt="Discord"></a>
-<a href="https://antelopejs.com"><img src="https://img.shields.io/badge/Docs-18181B?style=for-the-badge&color=000000" alt="Documentation"></a>
+<a href="https://github.com/AntelopeJS/interface-file-storage/tree/main/docs"><img src="https://img.shields.io/badge/Docs-18181B?style=for-the-badge&color=000000" alt="Documentation"></a>
 </div>
 
-Local-filesystem implementation of the AntelopeJS file-storage interface. It
-provides signed upload and read URLs, public and private visibility, named
-storage roots, metadata, and staged-file promotion.
+The AntelopeJS file storage module for a single machine: it stores the file-storage interface's files on the local filesystem and serves signed upload and read URLs through the API module.
 
-Use this module for local development and single-instance deployments. Files
-are stored on one machine and are not shared between replicas. Use
-[`@antelopejs/file-storage-s3`](https://github.com/AntelopeJS/file-storage-s3)
-for clustered or horizontally scaled deployments.
+Use it for development and single-instance deployments: files are not shared between replicas. Use [`@antelopejs/file-storage-s3`](https://github.com/AntelopeJS/file-storage-s3) for clustered deployments.
 
-## Installation
+## Interfaces
+
+| Interface                                                                                    | Documentation                                                                       |
+| -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| [`@antelopejs/interface-file-storage`](https://github.com/AntelopeJS/interface-file-storage) | [File storage](https://github.com/AntelopeJS/interface-file-storage/tree/main/docs) |
+
+Uploads, reads, visibility, metadata, staging and promotion are documented on the interface pages. The module serves its routes through [`@antelopejs/interface-api`](https://interfaces.antelopejs.com/docs/api/introduction), implemented by [`@antelopejs/api`](https://github.com/AntelopeJS/api).
+
+## Install
 
 ```bash
-pnpm add @antelopejs/file-storage-local
+ajs project modules add @antelopejs/file-storage-local
+ajs project modules install
 ```
 
-The module implements
-[`@antelopejs/interface-file-storage`](https://github.com/AntelopeJS/interface-file-storage).
-Install an AntelopeJS API module as well to expose its upload and download
-routes.
+`ajs project modules install` adds `@antelopejs/api` when the project has no API module yet. The module ships no default configuration: add a `config` block with at least `storagePath` and `baseUrl`.
 
 ## Configuration
 
-Add the module to `antelope.config.ts`:
-
-```ts
+```typescript [antelope.config.ts]
 import { defineConfig } from "@antelopejs/interface-core/config";
 
 export default defineConfig({
-  name: "my-app",
+  name: "my-project",
   modules: {
-    storage: {
+    "file-storage-local": {
       source: {
         type: "package",
         package: "@antelopejs/file-storage-local",
+        version: "^0.1.8",
       },
       config: {
         storagePath: ".antelope/storage",
-        baseUrl: "http://localhost:3000",
+        baseUrl: "${@api.API_PUBLIC_BASE_URL}",
         defaultVisibility: "private",
         uploadTokenExpiration: 3600,
-        readTokenExpiration: 300,
+        readTokenExpiration: 60,
         cleanupInterval: 300,
+        stagingExpiration: 86400,
+        storages: {
+          media: {
+            storagePath: ".antelope/media",
+            baseUrl: "${@api.API_PUBLIC_BASE_URL}",
+            defaultVisibility: "public",
+          },
+        },
       },
     },
   },
 });
 ```
 
-Expiration and cleanup values are expressed in seconds. Set
-`stagingExpiration` to periodically remove staged files that were never
-promoted.
+| Key                     | Default     | Description                                                                                                   |
+| ----------------------- | ----------- | ------------------------------------------------------------------------------------------------------------- |
+| `storagePath`           | required    | Folder that holds the files.                                                                                  |
+| `baseUrl`               | required    | Public origin of the API module. Upload and read URLs are `<baseUrl>/file-storage/...`.                       |
+| `defaultVisibility`     | `"private"` | Visibility of files uploaded without an explicit one: `"public"` or `"private"`.                              |
+| `uploadTokenExpiration` | `3600`      | Lifetime of an upload URL, in seconds.                                                                        |
+| `readTokenExpiration`   | `60`        | Lifetime of a private read URL, in seconds.                                                                   |
+| `cleanupInterval`       | `300`       | Interval of the expired-token cleanup, in seconds.                                                            |
+| `stagingExpiration`     | none        | When set, the cleanup also deletes staged files older than this many seconds. Without it, staged files stay.  |
+| `storages`              | none        | Named storages, each with the keys above. Address one with the `storage` argument of the interface functions. |
 
-Named storage roots can provide independent policies:
+`${@api.API_PUBLIC_BASE_URL}` is a [config variable](https://framework.antelopejs.com/docs/concepts/configuration#module-config-variables) published by `@antelopejs/api` under the module key `api`. Storage folders must not overlap, and the storage name `default` is reserved.
 
-```ts
-config: {
-  storagePath: ".antelope/storage",
-  baseUrl: "http://localhost:3000",
-  defaultVisibility: "private",
-  uploadTokenExpiration: 3600,
-  readTokenExpiration: 300,
-  cleanupInterval: 300,
-  storages: {
-    media: {
-      storagePath: ".antelope/media",
-      baseUrl: "http://localhost:3000",
-      defaultVisibility: "public",
-      uploadTokenExpiration: 3600,
-      readTokenExpiration: 300,
-      cleanupInterval: 300,
-    },
-  },
-}
+## Quick start
+
+In the module that handles uploads, add the interface:
+
+```bash
+pnpm add @antelopejs/interface-file-storage
 ```
 
-Storage roots must not overlap. The name `default` is reserved.
+```typescript
+import {
+  CreateReadUrl,
+  CreateUploadUrl,
+} from "@antelopejs/interface-file-storage";
 
-## Resource keys
+const upload = await CreateUploadUrl(
+  { filename: "avatar.png", size: 52_000, mimetype: "image/png" },
+  { maxSize: 1_000_000, allowedMimetypes: ["image/png", "image/jpeg"] },
+);
 
-Resource keys and upload `path` values are `/`-separated and must stay inside
-their storage root: `.` and `..` segments are rejected on every platform. On
-Windows, segments that contain `< > : " \ | ? *` or control characters, end
-with a dot or a space, or use a reserved device name such as `CON`, `NUL` or
-`COM1` are rejected as well, because Windows cannot store them. Generated keys
-keep the uploaded filename extension only when it is made of letters, digits,
-`_` or `-` (16 characters at most).
+const read = await CreateReadUrl(upload.resourceKey);
+```
 
-On Windows, storage roots must live on a filesystem that supports hard links,
-such as NTFS (not FAT32 or exFAT), and keys that differ only by letter case
-address the same file.
+The client sends the file with `PUT upload.uploadUrl` and the returned `upload.headers`, then fetches it from `read.url`.
 
-## Development
+## Platform notes
+
+- Resource keys and upload paths are `/`-separated and must stay inside their storage: `.` and `..` segments are rejected.
+- Generated keys keep the uploaded file's extension only when it has at most 16 letters, digits, `_` or `-`.
+- On Windows, storage folders must be on a filesystem with hard links, such as NTFS. Keys that differ only by letter case address the same file, and segments Windows cannot store (reserved characters, trailing dots or spaces, device names such as `CON` or `NUL`) are rejected.
+
+## Compatibility
+
+| Package                              | Supported range   |
+| ------------------------------------ | ----------------- |
+| `@antelopejs/interface-file-storage` | `>=0.1.3 <1.0.0`  |
+| `@antelopejs/interface-api`          | `>=0.0.13 <1.0.0` |
+| `@antelopejs/interface-core`         | `>=0.1.1 <1.0.0`  |
+
+The module is developed and tested against `@antelopejs/core` `^1.13.4` on Node.js 24, on Linux and Windows.
+
+## Contributing
 
 ```bash
 pnpm install
 pnpm lint
 pnpm format:check
-pnpm test
+pnpm knip
+pnpm test           # build, then ajs module test
 ```
 
-See the organization-wide
-[contribution guidelines](https://github.com/AntelopeJS/.github/blob/main/CONTRIBUTING.md)
-and [security policy](SECURITY.md).
+The tests also run the shared conformance suite of `@antelopejs/interface-file-storage`. Read the [contribution guidelines](CONTRIBUTING.md) before opening a pull request.
 
 ## License
 
-Apache-2.0
+[Apache-2.0](LICENSE)
