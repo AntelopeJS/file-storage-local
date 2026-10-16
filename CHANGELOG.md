@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.1.9
+
+[compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.8...v0.1.9)
+
+### 📖 Documentation
+
+- Rewrite the README ([#31](https://github.com/AntelopeJS/file-storage-local/pull/31))
+- **agents:** Simplify repository guidance ([#32](https://github.com/AntelopeJS/file-storage-local/pull/32))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
 ## v0.1.8
 
 [compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.7...v0.1.8)
