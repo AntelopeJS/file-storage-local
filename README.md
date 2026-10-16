@@ -115,11 +115,11 @@ The client sends the file with `PUT upload.uploadUrl` and the returned `upload.h
 
 | Package                              | Supported range   |
 | ------------------------------------ | ----------------- |
-| `@antelopejs/interface-file-storage` | `>=0.1.3 <1.0.0`  |
-| `@antelopejs/interface-api`          | `>=0.0.13 <1.0.0` |
-| `@antelopejs/interface-core`         | `>=0.1.1 <1.0.0`  |
+| `@antelopejs/interface-file-storage` | `>=0.1.4 <1.0.0`  |
+| `@antelopejs/interface-api`          | `>=0.0.15 <1.0.0` |
+| `@antelopejs/interface-core`         | `>=0.2.4 <1.0.0`  |
 
-The module is developed and tested against `@antelopejs/core` `^1.13.4` on Node.js 24, on Linux and Windows.
+The module is developed and tested against `@antelopejs/core` `^1.16.0` on Node.js 24, on Linux and Windows.
 
 ## Contributing
 
