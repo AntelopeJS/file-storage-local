@@ -7,6 +7,7 @@ import {
   type UploadConstraints,
   type UploadRequest,
   UploadValidationError,
+  type WriteFileResponse,
 } from "@antelopejs/interface-file-storage";
 
 import { getStorageConfig, getTokenManager } from "../../module-config";
@@ -96,45 +97,73 @@ function toFileMetadata(metadata: StoredMetadataSnapshot): FileMetadata {
   return fileMetadata;
 }
 
+/** The token an upload of `request` is accepted with, as both the presigned URL and a server write use it. */
+async function createUploadToken(
+  request: UploadRequest,
+  constraints: UploadConstraints | undefined,
+  storage: string | undefined,
+) {
+  validateUploadRequest(request, constraints);
+  const config = getStorageConfig(storage);
+  const tokenManager = getTokenManager(storage);
+  const baseKey = tokenManager.generateResourceKey(request.filename);
+  const resourceKey = request.staging
+    ? tokenManager.toStagedResourceKey(baseKey, request.path)
+    : baseKey;
+  const tokenPath = request.staging ? undefined : request.path;
+  const expiresAt =
+    Date.now() + config.uploadTokenExpiration * MillisecondsPerSecond;
+  const uploadToken = await tokenManager.createUploadToken(
+    resourceKey,
+    request.mimetype,
+    request.size,
+    expiresAt,
+    buildMetadata(request),
+    tokenPath,
+    request.visibility,
+  );
+  return { uploadToken, expiresAt };
+}
+
 export namespace internal {
   export const createUploadUrl = async (
     request: UploadRequest,
     constraints?: UploadConstraints,
     storage?: string,
   ): Promise<PresignedUploadResponse> => {
-    validateUploadRequest(request, constraints);
-    const config = getStorageConfig(storage);
-    const tokenManager = getTokenManager(storage);
-    const baseKey = tokenManager.generateResourceKey(request.filename);
-    const resourceKey = request.staging
-      ? tokenManager.toStagedResourceKey(baseKey, request.path)
-      : baseKey;
-    const tokenPath = request.staging ? undefined : request.path;
-    const expiresIn = config.uploadTokenExpiration;
-    const expiresAt = Date.now() + expiresIn * MillisecondsPerSecond;
-    const metadata = buildMetadata(request);
-    const uploadToken = await tokenManager.createUploadToken(
-      resourceKey,
-      request.mimetype,
-      request.size,
-      expiresAt,
-      metadata,
-      tokenPath,
-      request.visibility,
+    const { uploadToken, expiresAt } = await createUploadToken(
+      request,
+      constraints,
+      storage,
     );
     const uploadUrl = appendStorage(
-      buildUploadUrl(config.baseUrl, uploadToken.token),
+      buildUploadUrl(getStorageConfig(storage).baseUrl, uploadToken.token),
       storage,
     );
     return {
       uploadUrl,
-      resourceKey,
+      resourceKey: uploadToken.resourceKey,
       expiresAt,
       headers: {
         "Content-Type": request.mimetype,
         "Content-Length": String(request.size),
       },
     };
+  };
+
+  export const writeFile = async (
+    request: UploadRequest,
+    body: Uint8Array,
+    constraints?: UploadConstraints,
+    storage?: string,
+  ): Promise<WriteFileResponse> => {
+    const { uploadToken } = await createUploadToken(
+      request,
+      constraints,
+      storage,
+    );
+    await getTokenManager(storage).saveUpload(uploadToken.token, body);
+    return { resourceKey: uploadToken.resourceKey };
   };
 
   export const createReadUrl = async (
