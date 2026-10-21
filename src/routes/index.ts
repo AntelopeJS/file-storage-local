@@ -1,5 +1,4 @@
 import { promises as fs } from "node:fs";
-import type { IncomingMessage } from "node:http";
 import type { PassThrough } from "node:stream";
 import { Logging } from "@antelopejs/interface-core/logging";
 import {
@@ -8,6 +7,7 @@ import {
   UploadValidationError,
 } from "@antelopejs/interface-file-storage";
 import {
+  BodyStream,
   Context,
   Controller,
   Get,
@@ -25,16 +25,6 @@ import {
   resolveContentType,
   resolveDownloadFilename,
 } from "./download-headers";
-
-const RequestBodyIteration = { destroyOnReturn: false };
-
-function streamRequestBody(
-  request: IncomingMessage,
-): AsyncIterable<Uint8Array> {
-  return {
-    [Symbol.asyncIterator]: () => request.iterator(RequestBodyIteration),
-  };
-}
 
 /**
  * File Storage HTTP Controller
@@ -59,6 +49,7 @@ export class FileStorageController extends Controller("file-storage") {
     @Parameter("content-type", "header") contentType: string | undefined,
     @Parameter("content-length", "header") contentLength: string | undefined,
     @Parameter("storage", "query") storage: string | undefined,
+    @BodyStream() body: AsyncIterable<Uint8Array>,
     @Context() context: RequestContext,
   ): Promise<HTTPResult> {
     const tokenManager = getTokenManager(storage);
@@ -99,10 +90,7 @@ export class FileStorageController extends Controller("file-storage") {
     try {
       // Stream the body to disk: the token size bounds what is accepted,
       // whatever the API module's default request body limit is.
-      await tokenManager.saveUpload(
-        token,
-        streamRequestBody(context.rawRequest),
-      );
+      await tokenManager.saveUpload(token, body);
 
       return new HTTPResult(200, {
         success: true,
@@ -122,9 +110,6 @@ export class FileStorageController extends Controller("file-storage") {
         return new HTTPResult(400, { error: "Upload aborted" });
       Logging.Error("File upload error:", error);
       return new HTTPResult(500, { error: "Failed to save file" });
-    } finally {
-      // Discard any unread body so the client receives the response.
-      context.rawRequest.resume();
     }
   }
 
