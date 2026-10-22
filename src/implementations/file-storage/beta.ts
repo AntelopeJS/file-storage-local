@@ -1,9 +1,11 @@
+import { createReadStream } from "node:fs";
 import {
   type FileMetadata,
   FileNotFoundError,
   type PresignedReadResponse,
   type PresignedUploadResponse,
   type PromoteFileResponse,
+  type ReadFileResponse,
   type UploadConstraints,
   type UploadRequest,
   UploadValidationError,
@@ -198,6 +200,26 @@ export namespace internal {
     return {
       url: `${filesUrl}${storage ? "&" : "?"}token=${readToken.token}`,
       expiresAt,
+    };
+  };
+
+  export const readFile = async (
+    resourceKey: string,
+    storage?: string,
+  ): Promise<ReadFileResponse> => {
+    const tokenManager = getTokenManager(storage);
+    const metadata = await tokenManager.getFileMetadata(resourceKey);
+    if (
+      !metadata ||
+      !(await tokenManager.fileExists(resourceKey, metadata.path))
+    )
+      throw new FileNotFoundError(resourceKey);
+    return {
+      body: createReadStream(
+        tokenManager.getFilePath(resourceKey, metadata.path),
+      ),
+      size: metadata.size,
+      mimetype: metadata.mimetype,
     };
   };
 
