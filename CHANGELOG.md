@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.1.10
+
+[compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.9...v0.1.10)
+
+### 🚀 Enhancements
+
+- Implement WriteFile with the upload token path ([#35](https://github.com/AntelopeJS/file-storage-local/pull/35))
+
+### 💅 Refactors
+
+- **upload:** Take the upload body from @BodyStream() ([#34](https://github.com/AntelopeJS/file-storage-local/pull/34))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
 ## v0.1.9
 
 [compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.8...v0.1.9)
