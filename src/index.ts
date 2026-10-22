@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import { Logging } from "@antelopejs/interface-core/logging";
 import { ImplementInterface } from "@antelopejs/interface-core";
+import { GetRuntimeInfo } from "@antelopejs/interface-core/runtime";
 
 import { rootsOverlap } from "./storage/storage-roots";
 import { TokenManager } from "./storage/token-manager";
@@ -25,6 +26,14 @@ const DefaultReadTokenExpiration = 60;
 const DefaultCleanupInterval = 300;
 const MillisecondsPerSecond = 1000;
 const CleanupErrorPrefix = "[file-storage-local] Cleanup error:";
+// Files written on a disk that disappears with the instance (a container's
+// temporary directory, a pod that sleeps or restarts) are lost, and a second
+// instance never sees them: an upload lands on one, its confirmation on the
+// other. Nothing here can tell such a disk from a persistent one, so it warns.
+const ProductionStorageWarning =
+  "[file-storage-local] Files are stored on this instance's local disk: run exactly one instance, " +
+  "with storagePath on a persistent disk (not a container's temporary directory). " +
+  "Use @antelopejs/file-storage-s3 for several instances.";
 
 let cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
 
@@ -110,6 +119,7 @@ export async function construct(config: ConstructConfig): Promise<void> {
     import("./implementations/file-storage"),
   ]);
   void ImplementInterface(fileStorageInterface, fileStorageImplementation);
+  if (!(await GetRuntimeInfo()).dev) Logging.Warn(ProductionStorageWarning);
 }
 
 export function start(): void {
