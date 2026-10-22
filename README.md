@@ -11,6 +11,8 @@ The AntelopeJS file storage module for a single machine: it stores the file-stor
 
 Use it for development and single-instance deployments: files are not shared between replicas. Use [`@antelopejs/file-storage-s3`](https://github.com/AntelopeJS/file-storage-s3) for clustered deployments.
 
+In production, run exactly one instance, with `storagePath` on a persistent disk: a container's temporary directory loses every file when the instance sleeps, restarts or is replaced, and a second instance never sees the first one's files (an upload lands on one, its confirmation on the other). On AntelopeJS Cloud, attach a volume to the service and point `storagePath` at its mount path; attaching it keeps the service at one replica. The module logs this as a warning on every production start, since it cannot tell a persistent disk from a temporary one.
+
 ## Interfaces
 
 | Interface                                                                                    | Documentation                                                                       |
