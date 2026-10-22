@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.1.11
+
+[compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.10...v0.1.11)
+
+### 🚀 Enhancements
+
+- Warn at production start that files need one instance on a persistent disk ([#36](https://github.com/AntelopeJS/file-storage-local/pull/36))
+
+### 🏡 Chore
+
+- **release:** V0.1.10 ([#37](https://github.com/AntelopeJS/file-storage-local/pull/37))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
 ## v0.1.10
 
 [compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.9...v0.1.10)
