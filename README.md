@@ -117,7 +117,7 @@ The client sends the file with `PUT upload.uploadUrl` and the returned `upload.h
 
 | Package                              | Supported range   |
 | ------------------------------------ | ----------------- |
-| `@antelopejs/interface-file-storage` | `>=0.1.4 <1.0.0`  |
+| `@antelopejs/interface-file-storage` | `>=0.1.6 <0.2.0`  |
 | `@antelopejs/interface-api`          | `>=0.0.15 <1.0.0` |
 | `@antelopejs/interface-core`         | `>=0.2.4 <1.0.0`  |
 
