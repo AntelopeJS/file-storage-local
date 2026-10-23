@@ -4,6 +4,11 @@
 
 [compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.12...v0.1.13)
 
+### Upgrade notes
+
+- Implements `ReadFile` from `@antelopejs/interface-file-storage` 0.1.6: streams the stored file from disk (staged or promoted, private or public) with its size and MIME type, without a read token or an HTTP request to `baseUrl` ([#38](https://github.com/AntelopeJS/file-storage-local/pull/38)).
+- Implements `@antelopejs/interface-file-storage` `>=0.1.6 <0.2.0`. Upgrade it together with interface-file-storage 0.1.6: a provider without `readFile` (0.1.12 and older) fails to construct against it.
+
 ### 🚀 Enhancements
 
 - Implement ReadFile from the storage directory ([#38](https://github.com/AntelopeJS/file-storage-local/pull/38))
