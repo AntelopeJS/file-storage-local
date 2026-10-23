@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.1.13
+
+[compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.12...v0.1.13)
+
+### 🚀 Enhancements
+
+- Implement ReadFile from the storage directory ([#38](https://github.com/AntelopeJS/file-storage-local/pull/38))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli <rizzitelli.antony@pm.me>
+
 ## v0.1.12
 
 [compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.11...v0.1.12)

@@ -1,6 +1,6 @@
 {
   "name": "@antelopejs/file-storage-local",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Local filesystem storage module for AntelopeJS, implementing the File Storage interface for development and single-instance deployments",
   "keywords": [
     "antelopejs",
