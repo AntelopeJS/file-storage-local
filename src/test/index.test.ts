@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
+import { buffer } from "node:stream/consumers";
 import {
   CreateReadUrl,
   CreateUploadUrl,
@@ -9,6 +10,7 @@ import {
   GetFileMetadata,
   MoveFile,
   PromoteFile,
+  ReadFile,
   STAGING_PREFIX,
 } from "@antelopejs/interface-file-storage";
 
@@ -105,6 +107,25 @@ describe("file-storage interface", () => {
       ExistingFileContent.length.toString(),
     );
     assert.equal(await download.text(), ExistingFileContent);
+  });
+
+  it("reads a private file on the server without a token or an HTTP request", async () => {
+    const file = await ReadFile(ExistingResourceKey);
+
+    assert.equal(file.size, ExistingFileContent.length);
+    assert.equal(file.mimetype, "text/plain");
+    assert.equal((await buffer(file.body)).toString(), ExistingFileContent);
+  });
+
+  it("reads a staged file on the server", async () => {
+    await seedStagedFile(StagedResourceKey);
+    const file = await ReadFile(StagedResourceKey);
+
+    assert.equal((await buffer(file.body)).toString(), StagedFileContent);
+  });
+
+  it("reports a missing file on a server read", async () => {
+    await assert.rejects(() => ReadFile(MissingResourceKey), FileNotFoundError);
   });
 
   it("streams downloads larger than the stream buffer size", async () => {
