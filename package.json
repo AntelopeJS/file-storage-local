@@ -1,6 +1,6 @@
 {
   "name": "@antelopejs/file-storage-local",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "Local filesystem storage module for AntelopeJS, implementing the File Storage interface for development and single-instance deployments",
   "keywords": [
     "antelopejs",
@@ -31,7 +31,7 @@
     "dev": "ajs project run -w -p playground",
     "format": "oxfmt .",
     "lint:fix": "oxlint --fix",
-    "lint": "oxlint",
+    "lint": "oxlint && antelopejs-check-interface-ranges",
     "prepack": "pnpm run build",
     "release": "pnpm run lint && pnpm run test && pnpm run prepack && release-it",
     "test": "pnpm run build && ajs module test .",
