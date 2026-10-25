@@ -4,7 +4,7 @@ The local-disk provider of `@antelopejs/interface-file-storage`, published as `@
 
 ## Layout
 
-- `src/implementations/file-storage` holds the interface implementation; `ImplementInterface` in `src/index.ts` reads its `internal` namespace. `src/routes` registers the upload and download routes through `@Controller` decorators when `src/index.ts` imports it. Nothing else imports these files, so `knip.config.ts` lists them as entries; do not delete them as dead code.
+- `src/implementations/file-storage` holds the interface implementation; `ImplementInterface` in `src/index.ts` reads its `internal` export. `src/routes` registers the upload and download routes through the `FileStorageController` class decorators when `src/index.ts` imports it. No code uses `internal` or `FileStorageController` by name, so `knip.config.ts` lists these files as entries; do not delete those exports as dead code.
 - `src/storage` holds the disk logic: storage roots, upload tokens, staging promotion and publication.
 - The suites live in `src/test` and compile with the package; `ajs module test` runs them from `dist/test`.
 
@@ -15,7 +15,7 @@ This module implements `@antelopejs/interface-file-storage`, and `ImplementInter
 ## Tests
 
 - `pnpm test` builds `dist`, then runs `ajs module test .` with `src/test/antelope.test.ts`. That config loads this module and `@antelopejs/api` 1.3.0 (fetched into `.antelope/cache`), serves on `127.0.0.1:3000`, and runs the suites in `dist/test` plus the shared conformance suite of `@antelopejs/interface-file-storage`. Port 3000 must be free.
-- The module supports Windows. Tests simulate Windows behaviour on Linux through `src/test/platform.ts`, but `pnpm run checks` runs on Linux only. CI's `windows-tests` job runs `pnpm format:check` and `pnpm test` on `windows-latest`; locally, run `pnpm test` on a Windows machine.
+- The module supports Windows. Tests simulate Windows behaviour on Linux through `src/test/platform.ts`, but `pnpm run checks` runs on Linux only. CI's `windows-tests` job runs `pnpm format:check` and `pnpm test` on `windows-latest`; locally, on a Windows machine, run `pnpm install --frozen-lockfile --ignore-scripts` (the managed `prepare` script is POSIX shell and fails in cmd.exe), then `pnpm test`.
 
 <!-- antelopejs-guardrails:start -->
 <!-- Managed by @antelopejs/tooling-configs. `antelopejs-sync` rewrites everything between these markers; write repository-specific guidance outside them. -->
