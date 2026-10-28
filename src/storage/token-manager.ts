@@ -467,7 +467,10 @@ export class TokenManager {
     }
   }
 
-  private async writeJsonFile(path: string, data: unknown): Promise<void> {
+  private async writeJsonFile(
+    path: string,
+    data: UploadToken | ReadToken | StoredFileMetadata,
+  ): Promise<void> {
     await fs.writeFile(path, JSON.stringify(data, null, 2));
   }
 

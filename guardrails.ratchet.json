@@ -1,12 +1,9 @@
 {
   "rules": {
-    "anti-slop/no-known-value-widening": 3,
-    "anti-slop/no-runtime-typeof": 3,
-    "anti-slop/no-unknown-parameters": 8,
-    "anti-slop/require-safety-comment-for-type-assertion": 8,
+    "anti-slop/no-runtime-typeof": 2,
+    "anti-slop/require-safety-comment-for-type-assertion": 2,
     "eslint/max-lines-per-function": 1,
-    "eslint/max-params": 2,
-    "typescript/no-redundant-type-constituents": 1
+    "eslint/max-params": 2
   },
   "oversizeFiles": {}
 }

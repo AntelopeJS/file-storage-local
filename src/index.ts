@@ -38,7 +38,7 @@ const ProductionStorageWarning =
   "with storagePath on a persistent disk (not a container's temporary directory). " +
   "Use @antelopejs/file-storage-s3 for several instances.";
 
-let cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
+let cleanupIntervalId: NodeJS.Timeout | null = null;
 
 function applyDefaults(config: ConstructConfig): Config {
   const resolved: Config = {
@@ -100,11 +100,20 @@ async function assertDistinctRoots(entries: StorageEntry[]): Promise<void> {
   });
 }
 
+async function runLoggedCleanup(
+  config: Config,
+  manager: TokenManager,
+): Promise<void> {
+  try {
+    await runCleanup(config, manager);
+  } catch (error: unknown) {
+    Logging.Error(CleanupErrorPrefix, error);
+  }
+}
+
 function startCleanupInterval(config: Config, manager: TokenManager): void {
   cleanupIntervalId = setInterval(() => {
-    void runCleanup(config, manager).catch((error: unknown) => {
-      Logging.Error(CleanupErrorPrefix, error);
-    });
+    void runLoggedCleanup(config, manager);
   }, config.cleanupInterval * MillisecondsPerSecond);
 }
 

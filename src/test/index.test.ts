@@ -270,7 +270,7 @@ describe("file-storage interface", () => {
   it("throws FileNotFoundError when metadata is requested for missing files", async () => {
     await assert.rejects(
       () => GetFileMetadata(MissingResourceKey),
-      (error: unknown) => error instanceof FileNotFoundError,
+      FileNotFoundError,
     );
   });
 
@@ -336,7 +336,7 @@ describe("file-storage interface", () => {
     assert.equal(await FileExists(StagedResourceKey), false);
     await assert.rejects(
       () => GetFileMetadata(StagedResourceKey),
-      (error: unknown) => error instanceof FileNotFoundError,
+      FileNotFoundError,
     );
     assert.equal(
       await tokenManager.fileExists(`${STAGING_PREFIX}uploads/fresh.txt`),

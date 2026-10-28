@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { dirname, resolve } from "node:path";
 
+import type { StoredFileMetadata, UploadToken } from "./token-manager";
+
 const WindowsPlatform = "win32";
 const NamespacePrefixes: ReadonlyArray<readonly [RegExp, string]> = [
   [/^\\\\\?\\UNC\\/i, "\\\\"],
@@ -15,6 +17,9 @@ const UnsupportedDirectorySyncCodes = new Set([
   "EISDIR",
 ]);
 const BlockedReplaceCodes = new Set(["EPERM", "EACCES", "EBUSY"]);
+
+/** A Node.js system error that carries the string `code` of its failure. */
+type CodedError<Code extends string> = Error & { code: Code };
 
 export async function ensureDirectory(path: string): Promise<void> {
   const created = await fs.mkdir(path, { recursive: true });
@@ -49,16 +54,18 @@ export async function syncDirectory(path: string): Promise<void> {
   try {
     await directory.sync();
   } catch (error: unknown) {
-    if (!isWindowsError(error, UnsupportedDirectorySyncCodes)) throw error;
+    if (
+      !isCodedError(error) ||
+      !isWindowsErrorCode(error.code, UnsupportedDirectorySyncCodes)
+    )
+      throw error;
   } finally {
     await directory.close();
   }
 }
 
-function isWindowsError(error: unknown, codes: ReadonlySet<string>): boolean {
-  if (process.platform !== WindowsPlatform) return false;
-  const code = errorCode(error);
-  return code !== undefined && codes.has(code);
+function isWindowsErrorCode(code: string, codes: ReadonlySet<string>): boolean {
+  return process.platform === WindowsPlatform && codes.has(code);
 }
 
 export async function replaceFile(
@@ -69,7 +76,8 @@ export async function replaceFile(
     await fs.rename(source, destination);
   } catch (error: unknown) {
     if (
-      !isWindowsError(error, BlockedReplaceCodes) ||
+      !isCodedError(error) ||
+      !isWindowsErrorCode(error.code, BlockedReplaceCodes) ||
       !(await pathExists(destination))
     )
       throw error;
@@ -105,7 +113,10 @@ export async function publishFile(
   await syncDirectory(dirname(destination));
 }
 
-export async function publishJson(path: string, value: unknown): Promise<void> {
+export async function publishJson(
+  path: string,
+  value: StoredFileMetadata | UploadToken,
+): Promise<void> {
   const temporary = await prepareFile(path, JSON.stringify(value));
   try {
     await publishFile(temporary, path);
@@ -114,13 +125,17 @@ export async function publishJson(path: string, value: unknown): Promise<void> {
   }
 }
 
-function errorCode(error: unknown): string | undefined {
-  if (!(error instanceof Error) || !("code" in error)) return undefined;
-  return typeof error.code === "string" ? error.code : undefined;
+function isCodedError(error: unknown): error is CodedError<string> {
+  return (
+    error instanceof Error && "code" in error && typeof error.code === "string"
+  );
 }
 
-export function hasCode(error: unknown, code: string): boolean {
-  return errorCode(error) === code;
+export function hasCode<Code extends string>(
+  error: unknown,
+  code: Code,
+): error is CodedError<Code> {
+  return isCodedError(error) && error.code === code;
 }
 
 export async function pathExists(path: string): Promise<boolean> {

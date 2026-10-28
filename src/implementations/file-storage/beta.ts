@@ -51,7 +51,7 @@ function buildFilesUrl(
   );
 }
 
-function buildMetadata(request: UploadRequest): Record<string, string> {
+function buildMetadata(request: UploadRequest) {
   return {
     [FilenameMetadataKey]: request.filename,
     ...request.metadata,
