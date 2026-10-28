@@ -42,6 +42,8 @@ export class FileStorageController extends Controller("file-storage") {
    * Handles file upload with token validation.
    * Validates Content-Type and Content-Length against the token's expected values.
    * Returns 403 if headers don't match (simulating S3 SigV4 behavior).
+   * The body is streamed to disk, so the token size bounds what is accepted,
+   * whatever the API module's default request body limit is.
    */
   @Put("/upload/:token")
   async handleUpload(
@@ -54,19 +56,16 @@ export class FileStorageController extends Controller("file-storage") {
   ): Promise<HTTPResult> {
     const tokenManager = getTokenManager(storage);
 
-    // Get upload token
     const uploadToken = await tokenManager.getUploadToken(token);
     if (!uploadToken) {
       return new HTTPResult(404, { error: "Token not found or expired" });
     }
 
-    // Check expiration
     if (uploadToken.expiresAt < Date.now()) {
       await tokenManager.deleteUploadToken(token);
       return new HTTPResult(403, { error: "Token expired" });
     }
 
-    // Validate Content-Type (must match exactly)
     if (contentType !== uploadToken.mimetype) {
       return new HTTPResult(403, {
         error: "Content-Type mismatch",
@@ -75,7 +74,6 @@ export class FileStorageController extends Controller("file-storage") {
       });
     }
 
-    // Validate Content-Length when declared (must match exactly)
     const expectedSize = uploadToken.size;
     const receivedSize =
       contentLength === undefined ? expectedSize : parseInt(contentLength, 10);
@@ -88,8 +86,6 @@ export class FileStorageController extends Controller("file-storage") {
     }
 
     try {
-      // Stream the body to disk: the token size bounds what is accepted,
-      // whatever the API module's default request body limit is.
       await tokenManager.saveUpload(token, body);
 
       return new HTTPResult(200, {
@@ -119,6 +115,12 @@ export class FileStorageController extends Controller("file-storage") {
    * Handles file download.
    * - For public files: serves directly
    * - For private files: requires valid read token via ?token= query param
+   *
+   * A HEAD request gets the headers only. The file is streamed rather than
+   * buffered, so peak memory stays bounded whatever the file size or the number
+   * of concurrent downloads. Once streaming starts the 200 status is committed,
+   * so a read or write error aborts the connection instead of writing an error
+   * body, and a client disconnect releases the file handle and the stream.
    */
   @Get("/files/:resourceKey")
   async handleDownload(
@@ -158,11 +160,9 @@ export class FileStorageController extends Controller("file-storage") {
       return;
     }
 
-    // Check visibility
     const config = getStorageConfig(storage);
     const visibility = metadata.visibility ?? config.defaultVisibility;
     if (visibility === "private") {
-      // Private file: requires valid read token
       if (!token) {
         context.response.setStatus(403);
         stream.write(
@@ -182,7 +182,6 @@ export class FileStorageController extends Controller("file-storage") {
         return;
       }
 
-      // Check token expiration
       if (readToken.expiresAt < Date.now()) {
         context.response.setStatus(403);
         stream.write(JSON.stringify({ error: "Token expired" }));
@@ -190,7 +189,6 @@ export class FileStorageController extends Controller("file-storage") {
         return;
       }
 
-      // Verify token matches requested resource
       if (readToken.resourceKey !== decodedResourceKey) {
         context.response.setStatus(403);
         stream.write(
@@ -225,27 +223,21 @@ export class FileStorageController extends Controller("file-storage") {
           : "private, no-cache",
       );
 
-      // HEAD requests only need the headers, so skip reading the file.
       if (context.rawRequest.method?.toLowerCase() === "head") {
         stream.end();
         return;
       }
 
-      // Stream the file instead of buffering it in memory so peak memory
-      // stays bounded regardless of file size or concurrent downloads.
       const handle = await fs.open(filePath, "r");
       const fileStream = handle.createReadStream();
       const abortDownload = (error: Error) => {
         Logging.Error("File download error:", error);
-        // The 200 status is committed once streaming starts, so abort the
-        // connection instead of writing an error body.
         fileStream.destroy();
         stream.destroy();
         context.rawResponse.destroy();
       };
       fileStream.on("error", abortDownload);
       stream.on("error", abortDownload);
-      // Release the file handle and the PassThrough if the client disconnects mid-download.
       context.rawResponse.once("close", () => {
         fileStream.destroy();
         stream.destroy();

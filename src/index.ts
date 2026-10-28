@@ -26,10 +26,13 @@ const DefaultReadTokenExpiration = 60;
 const DefaultCleanupInterval = 300;
 const MillisecondsPerSecond = 1000;
 const CleanupErrorPrefix = "[file-storage-local] Cleanup error:";
-// Files written on a disk that disappears with the instance (a container's
-// temporary directory, a pod that sleeps or restarts) are lost, and a second
-// instance never sees them: an upload lands on one, its confirmation on the
-// other. Nothing here can tell such a disk from a persistent one, so it warns.
+/**
+ * Logged outside dev mode. Files on a disk that disappears with the instance
+ * (a container's temporary directory, a pod that sleeps or restarts) are lost,
+ * and a second instance never sees them, so an upload can land on one instance
+ * and its confirmation on another. The module cannot tell such a disk from a
+ * persistent one, so it warns instead of refusing.
+ */
 const ProductionStorageWarning =
   "[file-storage-local] Files are stored on this instance's local disk: run exactly one instance, " +
   "with storagePath on a persistent disk (not a container's temporary directory). " +
