@@ -2,7 +2,6 @@
   "rules": {
     "anti-slop/no-runtime-typeof": 2,
     "anti-slop/require-safety-comment-for-type-assertion": 2,
-    "eslint/max-lines-per-function": 1,
     "eslint/max-params": 2
   },
   "oversizeFiles": {}
