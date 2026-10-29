@@ -36,24 +36,41 @@ function destinationKey(sourceKey: string): string {
   return destination;
 }
 
+type CheckedMetadata = Pick<
+  StoredFileMetadata,
+  "resourceKey" | "size" | "mimetype" | "lastModified"
+>;
+
+function isMetadataOf(
+  value: unknown,
+  resourceKey: string,
+): value is CheckedMetadata {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "resourceKey" in value &&
+    value.resourceKey === resourceKey &&
+    "size" in value &&
+    typeof value.size === "number" &&
+    Number.isSafeInteger(value.size) &&
+    value.size >= 0 &&
+    "mimetype" in value &&
+    typeof value.mimetype === "string" &&
+    "lastModified" in value &&
+    typeof value.lastModified === "number" &&
+    Number.isFinite(value.lastModified)
+  );
+}
+
 async function readMetadata(
   path: string,
   resourceKey: string,
 ): Promise<StoredFileMetadata | null> {
   try {
-    const metadata = JSON.parse(
-      await fs.readFile(path, "utf8"),
-    ) as StoredFileMetadata;
-    if (
-      !metadata ||
-      metadata.resourceKey !== resourceKey ||
-      !Number.isSafeInteger(metadata.size) ||
-      metadata.size < 0 ||
-      typeof metadata.mimetype !== "string" ||
-      !Number.isFinite(metadata.lastModified)
-    )
+    const metadata: unknown = JSON.parse(await fs.readFile(path, "utf8"));
+    if (!isMetadataOf(metadata, resourceKey))
       throw new FileConflictError(resourceKey);
-    return metadata;
+    return metadata as StoredFileMetadata;
   } catch (error: unknown) {
     if (hasCode(error, "ENOENT")) return null;
     if (error instanceof SyntaxError) throw new FileConflictError(resourceKey);

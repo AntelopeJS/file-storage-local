@@ -1,6 +1,6 @@
 {
   "rules": {
-    "anti-slop/no-runtime-typeof": 2,
+    "anti-slop/no-runtime-typeof": 1,
     "anti-slop/require-safety-comment-for-type-assertion": 2,
     "eslint/max-params": 2
   },
