@@ -26,16 +26,19 @@ const DefaultReadTokenExpiration = 60;
 const DefaultCleanupInterval = 300;
 const MillisecondsPerSecond = 1000;
 const CleanupErrorPrefix = "[file-storage-local] Cleanup error:";
-// Files written on a disk that disappears with the instance (a container's
-// temporary directory, a pod that sleeps or restarts) are lost, and a second
-// instance never sees them: an upload lands on one, its confirmation on the
-// other. Nothing here can tell such a disk from a persistent one, so it warns.
+/**
+ * Logged outside dev mode. Files on a disk that disappears with the instance
+ * (a container's temporary directory, a pod that sleeps or restarts) are lost,
+ * and a second instance never sees them, so an upload can land on one instance
+ * and its confirmation on another. The module cannot tell such a disk from a
+ * persistent one, so it warns instead of refusing.
+ */
 const ProductionStorageWarning =
   "[file-storage-local] Files are stored on this instance's local disk: run exactly one instance, " +
   "with storagePath on a persistent disk (not a container's temporary directory). " +
   "Use @antelopejs/file-storage-s3 for several instances.";
 
-let cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
+let cleanupIntervalId: NodeJS.Timeout | null = null;
 
 function applyDefaults(config: ConstructConfig): Config {
   const resolved: Config = {
@@ -97,11 +100,20 @@ async function assertDistinctRoots(entries: StorageEntry[]): Promise<void> {
   });
 }
 
+async function runLoggedCleanup(
+  config: Config,
+  manager: TokenManager,
+): Promise<void> {
+  try {
+    await runCleanup(config, manager);
+  } catch (error: unknown) {
+    Logging.Error(CleanupErrorPrefix, error);
+  }
+}
+
 function startCleanupInterval(config: Config, manager: TokenManager): void {
   cleanupIntervalId = setInterval(() => {
-    void runCleanup(config, manager).catch((error: unknown) => {
-      Logging.Error(CleanupErrorPrefix, error);
-    });
+    void runLoggedCleanup(config, manager);
   }, config.cleanupInterval * MillisecondsPerSecond);
 }
 

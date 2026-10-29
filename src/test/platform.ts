@@ -37,10 +37,21 @@ export function permissionError(syscall: string): NodeJS.ErrnoException {
   return error;
 }
 
+function isSyncableHandle(value: unknown): value is SyncableHandle {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "sync" in value &&
+    typeof value.sync === "function"
+  );
+}
+
 export async function fileHandlePrototype(): Promise<SyncableHandle> {
   const probe = await fs.open(__filename, ReadOnlyOpenMode);
-  const prototype = Object.getPrototypeOf(probe) as SyncableHandle;
+  const prototype: unknown = Object.getPrototypeOf(probe);
   await probe.close();
+  if (!isSyncableHandle(prototype))
+    throw new Error("File handles have no sync method to replace");
   return prototype;
 }
 
@@ -64,7 +75,7 @@ export async function withWindowsFileFlushRules(
       throw permissionError("fsync");
     return originalSync.call(this);
   };
-  fs.open = trackReadOnly as typeof fs.open;
+  fs.open = trackReadOnly;
   try {
     await run();
   } finally {

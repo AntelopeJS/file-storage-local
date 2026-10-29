@@ -21,7 +21,7 @@ const PortableRules: SegmentRule[] = [
   (segment) => segment.includes(NullCharacter),
 ];
 
-const PlatformRules: Record<string, SegmentRule[]> = {
+const PlatformRules: Partial<Record<NodeJS.Platform, SegmentRule[]>> = {
   win32: [
     (segment) => WindowsForbiddenCharacters.test(segment),
     hasControlCharacter,

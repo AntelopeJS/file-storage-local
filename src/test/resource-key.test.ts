@@ -20,7 +20,7 @@ const UnsafeExtensionFilenames = [
   "notes./../../etc",
   `long.${"x".repeat(64)}`,
 ];
-const PreservedExtensions: Record<string, string> = {
+const PreservedExtensions = {
   "photo.JPG": ".JPG",
   "archive.tar.gz": ".gz",
   "scan.tiff": ".tiff",

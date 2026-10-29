@@ -67,6 +67,12 @@ describe("file-storage interface", () => {
     await resetStorage();
   });
 
+  registerUrlAndReadTests();
+  registerVisibilityTests();
+  registerLifecycleTests();
+});
+
+function registerUrlAndReadTests(): void {
   it("creates an upload URL with required headers", async () => {
     const response = await CreateUploadUrl(
       {
@@ -156,7 +162,9 @@ describe("file-storage interface", () => {
     );
     assert.equal(await download.text(), "");
   });
+}
 
+function registerVisibilityTests(): void {
   it("returns public read URL when default visibility is public", async () => {
     const config = getConfig();
     const previousVisibility = config.defaultVisibility;
@@ -242,7 +250,9 @@ describe("file-storage interface", () => {
     assert.equal(await (await fetch(read.url)).text(), content);
     await DeleteFile(upload.resourceKey, "media");
   });
+}
 
+function registerLifecycleTests(): void {
   it("returns true when file exists", async () => {
     const exists = await FileExists(ExistingResourceKey);
     assert.equal(exists, true);
@@ -270,7 +280,7 @@ describe("file-storage interface", () => {
   it("throws FileNotFoundError when metadata is requested for missing files", async () => {
     await assert.rejects(
       () => GetFileMetadata(MissingResourceKey),
-      (error: unknown) => error instanceof FileNotFoundError,
+      FileNotFoundError,
     );
   });
 
@@ -336,7 +346,7 @@ describe("file-storage interface", () => {
     assert.equal(await FileExists(StagedResourceKey), false);
     await assert.rejects(
       () => GetFileMetadata(StagedResourceKey),
-      (error: unknown) => error instanceof FileNotFoundError,
+      FileNotFoundError,
     );
     assert.equal(
       await tokenManager.fileExists(`${STAGING_PREFIX}uploads/fresh.txt`),
@@ -344,7 +354,7 @@ describe("file-storage interface", () => {
     );
     assert.equal(await FileExists(ExistingResourceKey), true);
   });
-});
+}
 
 async function resetStorage(): Promise<void> {
   const storagePath = getConfig().storagePath;

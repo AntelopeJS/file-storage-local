@@ -53,6 +53,17 @@ interface UploadErrorBody {
   error: string;
 }
 
+function assertUploadErrorBody(
+  value: unknown,
+): asserts value is UploadErrorBody {
+  assert.ok(
+    typeof value === "object" &&
+      value !== null &&
+      "error" in value &&
+      typeof value.error === "string",
+  );
+}
+
 async function createLargeUpload(): Promise<PresignedUploadResponse> {
   return createUpload({
     filename: "large.bin",
@@ -116,7 +127,8 @@ describe("large HTTP uploads", () => {
       body: randomBytes(LargeUploadSize + 1),
     });
     assert.equal(stored.status, 403);
-    const result = (await stored.json()) as UploadErrorBody;
+    const result: unknown = await stored.json();
+    assertUploadErrorBody(result);
     assert.equal(result.error, "Content-Length mismatch");
     assert.equal(await FileExists(upload.resourceKey), false);
   });
@@ -156,7 +168,12 @@ describe("write-once HTTP upload completion", () => {
     const upload = await createUpload();
     const bodies = [FirstBody, OtherBody];
     const results = await Promise.all(bodies.map((body) => put(upload, body)));
-    assert.deepEqual(results.map((result) => result.status).sort(), [200, 409]);
+    assert.deepEqual(
+      results
+        .map((result) => result.status)
+        .sort((left, right) => left - right),
+      [200, 409],
+    );
     const winner = results.findIndex((result) => result.status === 200);
     const read = await CreateReadUrl(upload.resourceKey);
     assert.equal(await (await fetch(read.url)).text(), bodies[winner]);

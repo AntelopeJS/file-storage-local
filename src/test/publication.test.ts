@@ -2,7 +2,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { once } from "node:events";
 import assert from "node:assert/strict";
-import { promises as fs } from "node:fs";
+import {
+  type MakeDirectoryOptions,
+  type Mode,
+  type PathLike,
+  promises as fs,
+} from "node:fs";
 import { fork, type ChildProcess } from "node:child_process";
 import {
   FileConflictError,
@@ -143,6 +148,31 @@ function administrativeSharePath(path: string): string | null {
   return `\\\\localhost\\${drive[1]}$${path.slice(drive[0].length)}`;
 }
 
+function reportingExtendedPath(original: typeof fs.mkdir): typeof fs.mkdir {
+  function reportExtendedPath(
+    path: PathLike,
+    options: MakeDirectoryOptions & { recursive: true },
+  ): Promise<string | undefined>;
+  function reportExtendedPath(
+    path: PathLike,
+    options?:
+      | Mode
+      | (MakeDirectoryOptions & { recursive?: false | undefined })
+      | null,
+  ): Promise<void>;
+  function reportExtendedPath(
+    path: PathLike,
+    options?: Mode | MakeDirectoryOptions | null,
+  ): Promise<string | undefined>;
+  async function reportExtendedPath(
+    ...args: Parameters<typeof fs.mkdir>
+  ): Promise<string | undefined | void> {
+    const created = await original(...args);
+    return created && `${ExtendedLengthPrefix}${created}`;
+  }
+  return reportExtendedPath;
+}
+
 async function recordOpenedPaths(run: () => Promise<void>): Promise<string[]> {
   const opened: string[] = [];
   const originalOpen = fs.open;
@@ -150,7 +180,7 @@ async function recordOpenedPaths(run: () => Promise<void>): Promise<string[]> {
     opened.push(String(args[0]));
     return originalOpen(...args);
   };
-  fs.open = recordOpen as typeof fs.open;
+  fs.open = recordOpen;
   try {
     await run();
   } finally {
@@ -418,13 +448,7 @@ describe("directory durability across platforms", () => {
   it("stops at the created directory when mkdir reports an extended-length path", async () => {
     const target = join(root, "extended", "nested");
     const original = fs.mkdir;
-    const reportExtendedPath = async (
-      ...args: Parameters<typeof fs.mkdir>
-    ): Promise<string | undefined> => {
-      const created = await original(...args);
-      return created && `${ExtendedLengthPrefix}${created}`;
-    };
-    fs.mkdir = reportExtendedPath as typeof fs.mkdir;
+    fs.mkdir = reportingExtendedPath(original);
     try {
       await withTimeout(ensureDirectory(target), EnsureDirectoryTimeout);
     } finally {
