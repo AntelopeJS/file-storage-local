@@ -1,4 +1,5 @@
 {
+  "pack": "0.2.17",
   "rules": {
     "anti-slop/no-runtime-typeof": 1,
     "anti-slop/require-safety-comment-for-type-assertion": 2,
