@@ -13,8 +13,11 @@ jobs:
   ci:
     uses: AntelopeJS/.github/.github/workflows/ci-node.yml@v1
     permissions:
-      contents: write
-      actions: write
+      contents: read
+    with:
+      docs-files: |
+        README.md
+      renovate-sync: false
 
   checks:
     if: always()
@@ -37,3 +40,10 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm format:check
       - run: pnpm test
+  renovate-sync:
+    if: >-
+      github.event_name == 'pull_request' && startsWith(github.head_ref, 'renovate/') && github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: write
+      actions: write
+    uses: AntelopeJS/.github/.github/workflows/ci-renovate-sync.yml@v1
