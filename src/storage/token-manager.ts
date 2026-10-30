@@ -420,7 +420,7 @@ export class TokenManager {
     const data = await this.readJsonFile<T>(path);
     if (
       data?.token !== token ||
-      !isText(data.resourceKey) ||
+      !isString(data.resourceKey) ||
       !Number.isFinite(data.expiresAt)
     )
       return null;
@@ -483,7 +483,7 @@ export class TokenManager {
   }
 }
 
-function isText(value: unknown): value is string {
+function isString(value: unknown): value is string {
   return typeof value === "string";
 }
 
