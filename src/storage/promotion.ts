@@ -70,7 +70,7 @@ async function readMetadata(
     const metadata: unknown = JSON.parse(await fs.readFile(path, "utf8"));
     if (!isMetadataOf(metadata, resourceKey))
       throw new FileConflictError(resourceKey);
-    return metadata as StoredFileMetadata;
+    return metadata;
   } catch (error: unknown) {
     if (hasCode(error, "ENOENT")) return null;
     if (error instanceof SyntaxError) throw new FileConflictError(resourceKey);
