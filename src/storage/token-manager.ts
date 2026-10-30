@@ -420,7 +420,7 @@ export class TokenManager {
     const data = await this.readJsonFile<T>(path);
     if (
       data?.token !== token ||
-      typeof data.resourceKey !== "string" ||
+      !isText(data.resourceKey) ||
       !Number.isFinite(data.expiresAt)
     )
       return null;
@@ -481,6 +481,10 @@ export class TokenManager {
       return;
     }
   }
+}
+
+function isText(value: unknown): value is string {
+  return typeof value === "string";
 }
 
 function extractFileExtension(filename: string): string {
