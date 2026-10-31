@@ -465,6 +465,7 @@ export class TokenManager {
   private async readJsonFile<T>(path: string): Promise<T | null> {
     try {
       const content = await fs.readFile(path, "utf-8");
+      // SAFETY: only writeJsonFile and publishJson write these files, each from the UploadToken, ReadToken or StoredFileMetadata of the same path, and each caller asks for the type of the path it reads (the cleanup only for the expiresAt every token kind holds).
       return JSON.parse(content) as T;
     } catch {
       return null;
