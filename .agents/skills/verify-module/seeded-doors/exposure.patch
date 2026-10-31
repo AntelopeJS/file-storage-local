@@ -1,0 +1,13 @@
+diff --git a/src/routes/index.ts b/src/routes/index.ts
+index b6d9dc6..e6625a2 100644
+--- a/src/routes/index.ts
++++ b/src/routes/index.ts
+@@ -188,7 +188,7 @@ export class FileStorageController extends Controller("file-storage") {
+         return;
+       }
+ 
+-      if (readToken.resourceKey !== decodedResourceKey) {
++      if (readToken.resourceKey === "") {
+         context.response.setStatus(403);
+         stream.write(
+           JSON.stringify({ error: "Token does not match requested resource" }),

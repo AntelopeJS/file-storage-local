@@ -1,0 +1,13 @@
+diff --git a/package.json b/package.json
+index 78d3699..fea0c92 100644
+--- a/package.json
++++ b/package.json
+@@ -49,7 +49,7 @@
+   "dependencies": {
+     "@antelopejs/interface-api": ">=0.0.16 <1.0.0",
+     "@antelopejs/interface-core": ">=0.2.4 <1.0.0",
+-    "@antelopejs/interface-file-storage": ">=0.1.6 <0.2.0"
++    "@antelopejs/interface-file-storage": ">=0.1.0 <0.2.0"
+   },
+   "devDependencies": {
+     "@antelopejs/core": "^1.16.0",

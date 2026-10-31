@@ -1,0 +1,13 @@
+diff --git a/src/implementations/file-storage/beta.ts b/src/implementations/file-storage/beta.ts
+index 2837654..38922ba 100644
+--- a/src/implementations/file-storage/beta.ts
++++ b/src/implementations/file-storage/beta.ts
+@@ -89,7 +89,7 @@ function toFileMetadata(metadata: StoredMetadataSnapshot): FileMetadata {
+   const fileMetadata: FileMetadata = {
+     resourceKey: metadata.resourceKey,
+     filename: metadata.metadata?.[FilenameMetadataKey] ?? "",
+-    size: metadata.size,
++    size: metadata.size + 1,
+     mimetype: metadata.mimetype,
+     lastModified: metadata.lastModified,
+   };

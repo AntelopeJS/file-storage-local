@@ -1,0 +1,13 @@
+diff --git a/src/storage/token-manager.ts b/src/storage/token-manager.ts
+index 8e1e19b..044ad19 100644
+--- a/src/storage/token-manager.ts
++++ b/src/storage/token-manager.ts
+@@ -289,7 +289,7 @@ export class TokenManager {
+   }
+ 
+   async deleteFile(resourceKey: string, path?: string): Promise<void> {
+-    await this.unlinkIfExists(this.getFilePath(resourceKey, path));
++    await this.unlinkIfExists(`${this.getFilePath(resourceKey, path)}.deleted`);
+   }
+ 
+   async ensureFileDirectory(resourceKey: string, path?: string): Promise<void> {
