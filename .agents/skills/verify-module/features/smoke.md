@@ -13,7 +13,7 @@ The fixed journey every verdict runs: load the module as `local` next to the API
 
 ## Sub-features
 
-- `module-dev` is the pack's journey: the project answers, the consumer loads the file storage interface, Ctrl+C exits 130.
+- `module-dev` replaces the pack's journey of the same id (the fixture needs the API module): the project answers, the consumer loads every implemented interface (`/surface`), a call reaches the module through core, Ctrl+C exits 130 and the driver port and the API port refuse afterwards.
 - `upload-through-disk`: one upload through `CreateUploadUrl` ends in the storage folder and is served by the URL `CreateReadUrl` returns.
 
 ## How to get to it (user POV)

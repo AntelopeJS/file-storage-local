@@ -29,12 +29,16 @@ const moduleDev: Journey = {
   entryPoint: "`ajs project dev` on a project that installs the module as `local` and the API module from the registry",
   async run(context) {
     const stack = await startStack(context);
+    const surface = await context.http("implemented interfaces", `http://127.0.0.1:${stack.app.port}/surface`, { method: "POST", body: "{}" });
+    context.expect(surface.folder, [same("the consumer loaded every implemented interface", pick(surface.json, "ok"), true)]);
     const exists = await call(stack, "FileExists of an unknown key", "FileExists", ["nothing.txt"]);
     context.expect(exists.folder, [answered(exists), same("the consumer reached the module's implementation of the interface", exists.value, false)]);
     const stopped = await context.stop("SIGINT", stack.app);
     context.expect(stopped.folder, [interrupted(stopped)]);
     const after = await context.http("port after stop", `${stack.base}/file-storage/files/x`);
     context.expect(after.folder, [refused(after)]);
+    const health = await context.http("driver port after stop", `http://127.0.0.1:${stack.app.port}/health`);
+    context.expect(health.folder, [refused(health)]);
   },
 };
 
