@@ -1,0 +1,13 @@
+diff --git a/src/routes/download-headers.ts b/src/routes/download-headers.ts
+index 0493e47..478a422 100644
+--- a/src/routes/download-headers.ts
++++ b/src/routes/download-headers.ts
+@@ -17,7 +17,7 @@ const AsciiReplacement = "_";
+ const UnicodeReplacement = String.fromCodePoint(0xfffd);
+ const HexRadix = 16;
+ 
+-export const NoSniffHeaderValue = "nosniff";
++export const NoSniffHeaderValue = "sniff";
+ 
+ export function resolveContentType(mimetype: string | undefined): string {
+   return mimetype?.trim() || FallbackContentType;
