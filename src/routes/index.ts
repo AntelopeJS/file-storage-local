@@ -7,7 +7,6 @@ import {
   UploadValidationError,
 } from "@antelopejs/interface-file-storage";
 import {
-  BodyStream,
   Context,
   Controller,
   Get,
@@ -15,6 +14,7 @@ import {
   Parameter,
   Put,
   type RequestContext,
+  StreamBody,
   WriteStream,
 } from "@antelopejs/interface-api";
 
@@ -51,7 +51,6 @@ export class FileStorageController extends Controller("file-storage") {
     @Parameter("content-type", "header") contentType: string | undefined,
     @Parameter("content-length", "header") contentLength: string | undefined,
     @Parameter("storage", "query") storage: string | undefined,
-    @BodyStream() body: AsyncIterable<Uint8Array>,
     @Context() context: RequestContext,
   ): Promise<HTTPResult> {
     const tokenManager = getTokenManager(storage);
@@ -86,7 +85,7 @@ export class FileStorageController extends Controller("file-storage") {
     }
 
     try {
-      await tokenManager.saveUpload(token, body);
+      await tokenManager.saveUpload(token, StreamBody(context));
 
       return new HTTPResult(200, {
         success: true,

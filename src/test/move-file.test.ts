@@ -24,12 +24,12 @@ let root: string;
 let manager: TokenManager;
 
 async function seedDestination(): Promise<string> {
-  const token = await manager.createUploadToken(
-    StageKey,
-    Mime,
-    Moved.length,
-    Date.now() + Lifetime,
-  );
+  const token = await manager.createUploadToken({
+    resourceKey: StageKey,
+    mimetype: Mime,
+    size: Moved.length,
+    expiresAt: Date.now() + Lifetime,
+  });
   await manager.saveUpload(token.token, Buffer.from(Moved));
   const destination = manager.getFilePath(FinalKey);
   await fs.writeFile(destination, Replaced);

@@ -93,15 +93,14 @@ async function crash(child: ChildProcess): Promise<void> {
 }
 
 async function upload(key = StageKey): Promise<UploadToken> {
-  return manager.createUploadToken(
-    key,
-    Mime,
-    First.length,
-    Date.now() + Lifetime,
-    { filename: "owned.txt" },
-    undefined,
-    "private",
-  );
+  return manager.createUploadToken({
+    resourceKey: key,
+    mimetype: Mime,
+    size: First.length,
+    expiresAt: Date.now() + Lifetime,
+    metadata: { filename: "owned.txt" },
+    visibility: "private",
+  });
 }
 
 async function seed(): Promise<UploadToken> {

@@ -115,15 +115,15 @@ async function createUploadToken(
   const tokenPath = request.staging ? undefined : request.path;
   const expiresAt =
     Date.now() + config.uploadTokenExpiration * MillisecondsPerSecond;
-  const uploadToken = await tokenManager.createUploadToken(
+  const uploadToken = await tokenManager.createUploadToken({
     resourceKey,
-    request.mimetype,
-    request.size,
+    mimetype: request.mimetype,
+    size: request.size,
     expiresAt,
-    buildMetadata(request),
-    tokenPath,
-    request.visibility,
-  );
+    metadata: buildMetadata(request),
+    path: tokenPath,
+    visibility: request.visibility,
+  });
   return { uploadToken, expiresAt };
 }
 
