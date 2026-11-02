@@ -117,11 +117,11 @@ The client sends the file with `PUT upload.uploadUrl` and the returned `upload.h
 
 <!-- antelopejs-docs-compat:start -->
 
-| Package                              | Supported         | Tested with |
-| ------------------------------------ | ----------------- | ----------- |
-| `@antelopejs/interface-api`          | `>=0.0.16 <1.0.0` | `0.0.16`    |
-| `@antelopejs/interface-core`         | `>=0.2.4 <1.0.0`  | `0.2.4`     |
-| `@antelopejs/interface-file-storage` | `>=0.1.6 <0.2.0`  | `0.1.6`     |
+| Package                              | Supported                                                  | Tested with                                                |
+| ------------------------------------ | ---------------------------------------------------------- | ---------------------------------------------------------- |
+| `@antelopejs/interface-api`          | `>=0.0.16 <1.0.0`                                          | `0.0.16`                                                   |
+| `@antelopejs/interface-core`         | `file:.campaign/tgz/antelopejs-interface-core-f7df541.tgz` | `file:.campaign/tgz/antelopejs-interface-core-f7df541.tgz` |
+| `@antelopejs/interface-file-storage` | `>=0.1.6 <0.2.0`                                           | `0.1.6`                                                    |
 
 <!-- antelopejs-docs-compat:end -->
 
