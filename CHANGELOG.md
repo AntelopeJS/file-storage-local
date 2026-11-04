@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.2.0
+
+[compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.13...v0.2.0)
+
+### 💅 Refactors
+
+- Clean the repo with the guardrail pack ([#43](https://github.com/AntelopeJS/file-storage-local/pull/43))
+- **storage:** Check promoted metadata with a type guard ([#44](https://github.com/AntelopeJS/file-storage-local/pull/44))
+
+### 📖 Documentation
+
+- **changelog:** Upgrade notes of file-storage-local 0.1.13 ([#40](https://github.com/AntelopeJS/file-storage-local/pull/40))
+- **readme:** Use one Discord invite ([#52](https://github.com/AntelopeJS/file-storage-local/pull/52))
+- **github:** Send questions and ideas to Discord ([#54](https://github.com/AntelopeJS/file-storage-local/pull/54))
+- **readme:** Link the package to AntelopeJS and AntelopeJS DMS ([d38249d](https://github.com/AntelopeJS/file-storage-local/commit/d38249d))
+
+### 📦 Build
+
+- **deps:** Bump @antelopejs/tooling-configs to 0.2.17 ([#46](https://github.com/AntelopeJS/file-storage-local/pull/46))
+
+### 🏡 Chore
+
+- Adopt the guardrail pack from tooling-configs 0.2.0 ([#41](https://github.com/AntelopeJS/file-storage-local/pull/41))
+- Configure Renovate with the shared preset ([#42](https://github.com/AntelopeJS/file-storage-local/pull/42))
+- Land the cleanup campaign on main ([#64](https://github.com/AntelopeJS/file-storage-local/pull/64))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli ([@Upd4ting](http://github.com/Upd4ting))
+
 ## v0.1.13
 
 [compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.12...v0.1.13)
