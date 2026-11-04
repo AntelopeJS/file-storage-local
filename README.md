@@ -13,6 +13,8 @@ Use it for development and single-instance deployments: files are not shared bet
 
 In production, run exactly one instance, with `storagePath` on a persistent disk: a container's temporary directory loses every file when the instance sleeps, restarts or is replaced, and a second instance never sees the first one's files (an upload lands on one, its confirmation on the other). On AntelopeJS Cloud, attach a volume to the service and point `storagePath` at its mount path; attaching it keeps the service at one replica. The module logs this as a warning on every production start, since it cannot tell a persistent disk from a temporary one.
 
+Part of [AntelopeJS](https://github.com/AntelopeJS/antelopejs). Used by [AntelopeJS DMS](https://github.com/AntelopeJS/dms), the open-source back office for your PostgreSQL, MongoDB or RethinkDB database.
+
 ## Interfaces
 
 | Interface                                                                                    | Documentation                                                                       |
