@@ -5,7 +5,7 @@ index 78d3699..fea0c92 100644
 @@ -49,7 +49,7 @@
    "dependencies": {
      "@antelopejs/interface-api": ">=0.0.16 <1.0.0",
-     "@antelopejs/interface-core": "file:.campaign/tgz/antelopejs-interface-core-f7df541.tgz",
+     "@antelopejs/interface-core": ">=0.4.0 <1.0.0",
 -    "@antelopejs/interface-file-storage": ">=0.1.6 <0.2.0"
 +    "@antelopejs/interface-file-storage": ">=0.1.0 <0.2.0"
    },
