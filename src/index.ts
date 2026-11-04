@@ -12,15 +12,19 @@ import {
   getTokenManager,
   registerStorageManager,
   setModuleState,
+  type StorageConfig,
 } from "./module-config";
 import "./routes";
 
 export { type Config, getConfig, getTokenManager };
 
-type BaseConfig = Pick<Config, "storagePath" | "baseUrl">;
-type ConstructConfig = Partial<Config> & BaseConfig;
+type StorageInput = Partial<StorageConfig> &
+  Pick<StorageConfig, "storagePath" | "baseUrl">;
+type ConstructConfig = StorageInput & {
+  storages?: Record<string, StorageInput>;
+};
 
-const DefaultVisibility: Config["defaultVisibility"] = "private";
+const DefaultVisibility: StorageConfig["defaultVisibility"] = "private";
 const DefaultUploadTokenExpiration = 3600;
 const DefaultReadTokenExpiration = 60;
 const DefaultCleanupInterval = 300;
@@ -38,10 +42,10 @@ const ProductionStorageWarning =
   "with storagePath on a persistent disk (not a container's temporary directory). " +
   "Use @antelopejs/file-storage-s3 for several instances.";
 
-let cleanupIntervalId: NodeJS.Timeout | null = null;
+const cleanupIntervals: NodeJS.Timeout[] = [];
 
-function applyDefaults(config: ConstructConfig): Config {
-  const resolved: Config = {
+function applyDefaults(config: StorageInput): StorageConfig {
+  const resolved: StorageConfig = {
     ...config,
     storagePath: config.storagePath,
     baseUrl: config.baseUrl,
@@ -58,8 +62,21 @@ function applyDefaults(config: ConstructConfig): Config {
   return resolved;
 }
 
+function resolveConfig(config: ConstructConfig): Config {
+  const resolved: Config = applyDefaults(config);
+  if (config.storages) {
+    resolved.storages = Object.fromEntries(
+      Object.entries(config.storages).map(([storage, value]) => [
+        storage,
+        applyDefaults(value),
+      ]),
+    );
+  }
+  return resolved;
+}
+
 async function runCleanup(
-  config: Config,
+  config: StorageConfig,
   manager: TokenManager,
 ): Promise<void> {
   await manager.cleanupExpiredTokens();
@@ -73,12 +90,12 @@ async function runCleanup(
 
 interface StorageEntry {
   storage?: string;
-  config: Config;
+  config: StorageConfig;
 }
 
 function storageEntries(config: Config): StorageEntry[] {
   const named = Object.entries(config.storages ?? {}).map(
-    ([storage, value]) => ({ storage, config: applyDefaults(value) }),
+    ([storage, value]) => ({ storage, config: value }),
   );
   return [{ config }, ...named];
 }
@@ -101,7 +118,7 @@ async function assertDistinctRoots(entries: StorageEntry[]): Promise<void> {
 }
 
 async function runLoggedCleanup(
-  config: Config,
+  config: StorageConfig,
   manager: TokenManager,
 ): Promise<void> {
   try {
@@ -111,14 +128,19 @@ async function runLoggedCleanup(
   }
 }
 
-function startCleanupInterval(config: Config, manager: TokenManager): void {
-  cleanupIntervalId = setInterval(() => {
-    void runLoggedCleanup(config, manager);
-  }, config.cleanupInterval * MillisecondsPerSecond);
+function startCleanupInterval(entry: StorageEntry): void {
+  const { config } = entry;
+  if (config.cleanupInterval <= 0) return;
+  const manager = getTokenManager(entry.storage);
+  cleanupIntervals.push(
+    setInterval(() => {
+      void runLoggedCleanup(config, manager);
+    }, config.cleanupInterval * MillisecondsPerSecond),
+  );
 }
 
 export async function construct(config: ConstructConfig): Promise<void> {
-  const resolved = applyDefaults(config);
+  const resolved = resolveConfig(config);
   if (resolved.storages?.default)
     throw new Error("Named storage 'default' is reserved");
   const manager = new TokenManager(resolved.storagePath);
@@ -135,18 +157,11 @@ export async function construct(config: ConstructConfig): Promise<void> {
 }
 
 export function start(): void {
-  const config = getConfig();
-  if (config.cleanupInterval <= 0) {
-    return;
-  }
-  startCleanupInterval(config, getTokenManager());
+  storageEntries(getConfig()).forEach(startCleanupInterval);
 }
 
 export function stop(): void {
-  if (cleanupIntervalId) {
-    clearInterval(cleanupIntervalId);
-    cleanupIntervalId = null;
-  }
+  cleanupIntervals.splice(0).forEach(clearInterval);
 }
 
 export function destroy(): void {
