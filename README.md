@@ -57,9 +57,6 @@ export default defineConfig({
             storagePath: ".antelope/media",
             baseUrl: "${@api.API_PUBLIC_BASE_URL}",
             defaultVisibility: "public",
-            uploadTokenExpiration: 3600,
-            readTokenExpiration: 60,
-            cleanupInterval: 300,
           },
         },
       },
@@ -79,7 +76,7 @@ export default defineConfig({
 | `stagingExpiration`     | none        | When set, the cleanup also deletes staged files older than this many seconds. Without it, staged files stay.                    |
 | `storages`              | none        | Named storages, each with the keys above except `storages`. Address one with the `storage` argument of the interface functions. |
 
-The defaults apply to the top-level storage only. A named storage gets no default, so set every key on it, as `media` does above. The cleanup and the staging sweep run on the top-level storage only, with its `cleanupInterval` and `stagingExpiration`.
+A named storage gets the same defaults for the keys it leaves out. The cleanup and the staging sweep run on each storage with its own `cleanupInterval` and `stagingExpiration`.
 
 `${@api.API_PUBLIC_BASE_URL}` is a [config variable](https://framework.antelopejs.com/docs/concepts/configuration#module-config-variables) that `@antelopejs/api` publishes under the module key `api`. Storage folders must not overlap, and the storage name `default` is reserved. The module refuses to start otherwise.
 
