@@ -55,14 +55,13 @@ let root: string;
 let manager: TokenManager;
 
 async function upload(resourceKey: string, path?: string): Promise<void> {
-  const token = await manager.createUploadToken(
+  const token = await manager.createUploadToken({
     resourceKey,
-    Mime,
-    Body.length,
-    Date.now() + Lifetime,
-    undefined,
+    mimetype: Mime,
+    size: Body.length,
+    expiresAt: Date.now() + Lifetime,
     path,
-  );
+  });
   await manager.saveUpload(token.token, Buffer.from(Body));
 }
 

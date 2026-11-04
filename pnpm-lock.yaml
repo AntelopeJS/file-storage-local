@@ -10,17 +10,17 @@ importers:
     dependencies:
       '@antelopejs/interface-api':
         specifier: '>=0.0.16 <1.0.0'
-        version: 0.0.16(@antelopejs/interface-core@0.2.4)
+        version: 0.0.16(@antelopejs/interface-core@0.4.0)
       '@antelopejs/interface-core':
-        specifier: '>=0.2.4 <1.0.0'
-        version: 0.2.4
+        specifier: '>=0.4.0 <1.0.0'
+        version: 0.4.0
       '@antelopejs/interface-file-storage':
         specifier: '>=0.1.6 <0.2.0'
-        version: 0.1.6(@antelopejs/interface-core@0.2.4)
+        version: 0.1.6(@antelopejs/interface-core@0.4.0)
     devDependencies:
       '@antelopejs/core':
-        specifier: ^1.16.0
-        version: 1.16.0
+        specifier: ^1.20.0
+        version: 1.20.0
       '@antelopejs/tooling-configs':
         specifier: ^0.2.17
         version: 0.2.17(eslint-plugin-perfectionist@5.11.0(eslint@10.10.0(jiti@2.7.0))(typescript@5.9.3))(knip@6.34.0)(oxfmt@0.66.0)(oxlint@1.81.0(oxlint-tsgolint@7.0.2001))
@@ -63,9 +63,9 @@ importers:
 
 packages:
 
-  '@antelopejs/core@1.16.0':
-    resolution: {integrity: sha512-dj1R8xPgLzkTksfenPNh3kX1fffRnWktielk1yad/4/1wTEMhkPSx1WQ/4QI98d95L6Th0EMGTV/U4o84p/2yw==}
-    engines: {node: '>=20.19'}
+  '@antelopejs/core@1.20.0':
+    resolution: {integrity: sha512-7clqf/n8aUi4iCwMG0G2dWLQCwzy9ZxTLHLmOIEtfObw5wuN06s0+n57Zzjr3wbIyR2wD3Q4AeorqJ94QidIfg==}
+    engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
   '@antelopejs/interface-api@0.0.16':
@@ -73,8 +73,8 @@ packages:
     peerDependencies:
       '@antelopejs/interface-core': '>=0.2.4 <1.0.0'
 
-  '@antelopejs/interface-core@0.2.4':
-    resolution: {integrity: sha512-2qF6/KwahCQvvNuC/piUvPWD4wq2Npmco941HMg2/bMBoJKbhMH16WcXXRvPYznNSkU0U+6vqK6KE+2N5NojSA==}
+  '@antelopejs/interface-core@0.4.0':
+    resolution: {integrity: sha512-IPX6dtt3KHknclN4mLOYeRYL2Odz1Pts+dtaZul62NghsBUX/0OFHD4Qhoaf+Beva4hjInbaF918ajr4Z5HVWQ==}
 
   '@antelopejs/interface-file-storage@0.1.6':
     resolution: {integrity: sha512-dtXntwLHhfX0IFR2ttTSj9pNEJi84mRP0EW5S1f1LkD4U2cC+dO6mG2jYUaJQgIreceXcCPYtccHLW5tPKN3dw==}
@@ -2502,9 +2502,9 @@ packages:
 
 snapshots:
 
-  '@antelopejs/core@1.16.0':
+  '@antelopejs/core@1.20.0':
     dependencies:
-      '@antelopejs/interface-core': 0.2.4
+      '@antelopejs/interface-core': 0.4.0
       '@clack/prompts': 1.8.1
       '@types/proper-lockfile': 4.1.4
       commander: 13.1.0
@@ -2517,17 +2517,17 @@ snapshots:
       semver: 7.7.4
       typescript: 5.9.3
 
-  '@antelopejs/interface-api@0.0.16(@antelopejs/interface-core@0.2.4)':
+  '@antelopejs/interface-api@0.0.16(@antelopejs/interface-core@0.4.0)':
     dependencies:
-      '@antelopejs/interface-core': 0.2.4
+      '@antelopejs/interface-core': 0.4.0
 
-  '@antelopejs/interface-core@0.2.4':
+  '@antelopejs/interface-core@0.4.0':
     dependencies:
       reflect-metadata: 0.2.2
 
-  '@antelopejs/interface-file-storage@0.1.6(@antelopejs/interface-core@0.2.4)':
+  '@antelopejs/interface-file-storage@0.1.6(@antelopejs/interface-core@0.4.0)':
     dependencies:
-      '@antelopejs/interface-core': 0.2.4
+      '@antelopejs/interface-core': 0.4.0
 
   '@antelopejs/tooling-configs@0.2.17(eslint-plugin-perfectionist@5.11.0(eslint@10.10.0(jiti@2.7.0))(typescript@5.9.3))(knip@6.34.0)(oxfmt@0.66.0)(oxlint@1.81.0(oxlint-tsgolint@7.0.2001))':
     dependencies:

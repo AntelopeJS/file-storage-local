@@ -11,12 +11,14 @@ permissions:
 
 jobs:
   ci:
-    uses: AntelopeJS/.github/.github/workflows/ci-node.yml@v1
+    uses: AntelopeJS/.github/.github/workflows/ci-node.yml@v1-campaign
     permissions:
       contents: read
     with:
       docs-files: |
         README.md
+        docs
+      docs-typescript-project: docs/tsconfig.json
       renovate-sync: false
 
   checks:
@@ -40,6 +42,8 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm format:check
       - run: pnpm test
+        env:
+          npm_config_ignore_scripts: "true"
   renovate-sync:
     if: >-
       github.event_name == 'pull_request' && startsWith(github.head_ref, 'renovate/') && github.event.pull_request.head.repo.full_name == github.repository

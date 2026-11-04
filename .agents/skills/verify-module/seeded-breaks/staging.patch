@@ -1,0 +1,13 @@
+diff --git a/src/storage/promotion.ts b/src/storage/promotion.ts
+index 57f036e..ab1e0ce 100644
+--- a/src/storage/promotion.ts
++++ b/src/storage/promotion.ts
+@@ -150,7 +150,7 @@ export async function promoteFile(
+   const metadata = {
+     ...source,
+     resourceKey: destination,
+-    promotionSource: sourceKey,
++    promotionSource: destination,
+   };
+   delete metadata.path;
+   try {

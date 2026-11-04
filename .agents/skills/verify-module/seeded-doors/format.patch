@@ -1,0 +1,13 @@
+diff --git a/src/storage/token-manager.ts b/src/storage/token-manager.ts
+index 8e1e19b..d89c198 100644
+--- a/src/storage/token-manager.ts
++++ b/src/storage/token-manager.ts
+@@ -28,7 +28,7 @@ import { exactSizeChunks, type UploadBody } from "./upload-body";
+ export const FilenameMetadataKey = "filename";
+ 
+ const FilesDirectory = "files";
+-const MetadataDirectory = "metadata";
++const MetadataDirectory = "meta";
+ const TokensDirectory = "tokens";
+ const UploadTokensDirectory = "upload";
+ const ReadTokensDirectory = "read";

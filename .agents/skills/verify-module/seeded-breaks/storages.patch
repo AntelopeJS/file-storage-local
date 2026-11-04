@@ -1,0 +1,16 @@
+diff --git a/src/module-config.ts b/src/module-config.ts
+index ca5df71..84c1b9c 100644
+--- a/src/module-config.ts
++++ b/src/module-config.ts
+@@ -63,10 +63,7 @@ export function getStorageConfig(storage?: string): StorageConfig {
+ 
+ export function getTokenManager(storage?: string): TokenManager {
+   if (storage) {
+-    const manager = tokenManagers.get(storage);
+-    if (!manager)
+-      throw new Error(`Storage '${storage}' not found in configuration`);
+-    return manager;
++    return tokenManagers.get(storage) ?? getTokenManager();
+   }
+   if (!tokenManager) {
+     throw new Error("Token manager is not initialized");

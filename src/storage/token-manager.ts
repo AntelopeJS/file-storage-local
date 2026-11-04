@@ -51,6 +51,17 @@ export interface UploadToken {
   visibility?: Visibility;
 }
 
+/** What `TokenManager.createUploadToken` stores with a new upload token; the token itself is generated. */
+export interface UploadTokenRequest {
+  resourceKey: string;
+  mimetype: string;
+  size: number;
+  expiresAt: number;
+  metadata?: Record<string, string> | undefined;
+  path?: string | undefined;
+  visibility?: Visibility | undefined;
+}
+
 export interface ReadToken {
   token: string;
   resourceKey: string;
@@ -123,16 +134,9 @@ export class TokenManager {
     return toStagedKey(inner);
   }
 
-  async createUploadToken(
-    resourceKey: string,
-    mimetype: string,
-    size: number,
-    expiresAt: number,
-    metadata?: Record<string, string>,
-    path?: string,
-    visibility?: Visibility,
-  ): Promise<UploadToken> {
-    this.assertStorable(resourceKey, path);
+  async createUploadToken(request: UploadTokenRequest): Promise<UploadToken> {
+    const { resourceKey, mimetype, size, expiresAt } = request;
+    this.assertStorable(resourceKey, request.path);
     const data: UploadToken = {
       token: this.generateToken(),
       resourceKey,
@@ -140,14 +144,14 @@ export class TokenManager {
       size,
       expiresAt,
     };
-    if (metadata) {
-      data.metadata = metadata;
+    if (request.metadata) {
+      data.metadata = request.metadata;
     }
-    if (path) {
-      data.path = path;
+    if (request.path) {
+      data.path = request.path;
     }
-    if (visibility) {
-      data.visibility = visibility;
+    if (request.visibility) {
+      data.visibility = request.visibility;
     }
     await this.writeJsonFile(this.getUploadTokenPath(data.token), data);
     return data;
@@ -420,7 +424,7 @@ export class TokenManager {
     const data = await this.readJsonFile<T>(path);
     if (
       data?.token !== token ||
-      typeof data.resourceKey !== "string" ||
+      !isString(data.resourceKey) ||
       !Number.isFinite(data.expiresAt)
     )
       return null;
@@ -461,6 +465,7 @@ export class TokenManager {
   private async readJsonFile<T>(path: string): Promise<T | null> {
     try {
       const content = await fs.readFile(path, "utf-8");
+      // SAFETY: only writeJsonFile and publishJson write these files, each from the UploadToken, ReadToken or StoredFileMetadata of the same path, and each caller asks for the type of the path it reads (the cleanup only for the expiresAt every token kind holds).
       return JSON.parse(content) as T;
     } catch {
       return null;
@@ -481,6 +486,10 @@ export class TokenManager {
       return;
     }
   }
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === "string";
 }
 
 function extractFileExtension(filename: string): string {
