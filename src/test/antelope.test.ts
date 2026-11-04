@@ -24,6 +24,16 @@ export default defineConfig({
             readTokenExpiration: 300,
             cleanupInterval: 300,
           },
+          bare: {
+            storagePath: ".antelope/cache/storage-bare",
+            baseUrl: "http://127.0.0.1:3000",
+          },
+          swept: {
+            storagePath: ".antelope/cache/storage-swept",
+            baseUrl: "http://127.0.0.1:3000",
+            cleanupInterval: 1,
+            stagingExpiration: 1,
+          },
         },
       },
     },
