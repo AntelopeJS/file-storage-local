@@ -1,6 +1,6 @@
 # Feature map
 
-One file per feature. `covers:` lists the source globs it owns, `docs:` the pages a verdict judges, `journeys:` the journeys it runs, and `seeded-breaks/<feature>.patch` the break its journeys must catch. `pnpm exec antelopejs-verify map` checks that every user-facing file is covered.
+One file per feature. `covers:` lists the source globs it owns, `docs:` the pages a verdict judges, and `journeys:` the journeys it runs. `pnpm exec antelopejs-verify map` checks that every user-facing file is covered.
 
 The module serves its routes through `@antelopejs/api`, so every journey installs the API module from the registry next to the module under verification, as the README tells a user to. Journeys PUT and GET with `curl`, as a browser would, and read the storage folder from disk as the second view. `WriteFile` and `ReadFile` pass bytes and a stream that the JSON driver cannot carry, so only the module's own mocha suite covers them.
 

@@ -16,8 +16,8 @@ An application module checks, describes, moves and deletes a stored file, and th
 
 ## Sub-features
 
-- `objects-lifecycle`: `FileExists` and `GetFileMetadata` answer for an uploaded file and for an unknown key (`FileNotFoundError`); `MoveFile` leaves the bytes at the destination only, keeps the name, size and metadata under the new key, serves them through a read URL and is a no-op for a missing source; `DeleteFile` leaves no bytes and no description on disk and is a no-op the second time. This is the containment journey of the Data door.
-- `stored-format`: after an upload the folder holds `files/<path>/<key>` and `metadata/<key>.json`, and the record names the key, path, type, size, filename, custom metadata and a modification time. This is the containment journey of the Format door.
+- `objects-lifecycle`: `FileExists` and `GetFileMetadata` answer for an uploaded file and for an unknown key (`FileNotFoundError`); `MoveFile` leaves the bytes at the destination only, keeps the name, size and metadata under the new key, serves them through a read URL and is a no-op for a missing source; `DeleteFile` leaves no bytes and no description on disk and is a no-op the second time.
+- `stored-format`: after an upload the folder holds `files/<path>/<key>` and `metadata/<key>.json`, and the record names the key, path, type, size, filename, custom metadata and a modification time.
 
 ## How to get to it (user POV)
 
