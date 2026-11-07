@@ -2,6 +2,8 @@
 covers:
   - src/routes/index.ts
   - src/routes/download-headers.ts
+  - src/storage/token-manager.ts
+  - src/index.ts
 docs:
   - README.md
 journeys:

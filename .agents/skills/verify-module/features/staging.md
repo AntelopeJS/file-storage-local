@@ -3,6 +3,7 @@ covers:
   - src/storage/promotion.ts
   - src/implementations/file-storage/beta.ts
   - src/index.ts
+  - src/storage/token-manager.ts
 docs:
   - README.md
 journeys:

@@ -2,6 +2,7 @@
 covers:
   - src/module-config.ts
   - src/storage/storage-roots.ts
+  - src/index.ts
 docs:
   - README.md
 journeys:
