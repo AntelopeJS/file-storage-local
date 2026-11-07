@@ -5,6 +5,10 @@ covers:
   - src/storage/upload-body.ts
   - src/storage/resource-key.ts
   - src/storage/publication.ts
+  - src/routes/index.ts
+  - src/storage/token-manager.ts
+  - src/index.ts
+  - src/module-config.ts
 docs:
   - README.md
 journeys:

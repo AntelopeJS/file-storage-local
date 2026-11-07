@@ -2,6 +2,10 @@
 covers:
   - src/module-config.ts
   - src/storage/storage-roots.ts
+  - src/index.ts
+  - src/implementations/file-storage/beta.ts
+  - src/routes/index.ts
+  - src/storage/token-manager.ts
 docs:
   - README.md
 journeys:
