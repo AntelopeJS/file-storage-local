@@ -17,7 +17,7 @@ export { pick, tuple, type Json } from "./json.ts";
 export type ModuleConfig = NonNullable<NonNullable<Parameters<JourneyContext["fixture"]>[0]>["moduleConfig"]>;
 
 const API_PACKAGE = "@antelopejs/api";
-const API_VERSION = "1.3.0";
+const API_VERSION = "1.6.0";
 
 function isAddress(value: ReturnType<Server["address"]>): value is AddressInfo {
   return typeof value === "object" && value !== null;
