@@ -8,6 +8,7 @@ covers:
   - src/routes/index.ts
   - src/storage/token-manager.ts
   - src/index.ts
+  - src/module-config.ts
 docs:
   - README.md
 journeys:

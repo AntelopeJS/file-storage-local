@@ -4,6 +4,8 @@ covers:
   - src/implementations/file-storage/beta.ts
   - src/index.ts
   - src/storage/token-manager.ts
+  - src/storage/publication.ts
+  - src/storage/resource-key.ts
 docs:
   - README.md
 journeys:
