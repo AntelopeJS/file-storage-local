@@ -1,5 +1,42 @@
 # Changelog
 
+## v0.2.1
+
+[compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.2.0...v0.2.1)
+
+### 🔥 Performance
+
+- **storage:** Drop the second existence check on reads ([#79](https://github.com/AntelopeJS/file-storage-local/pull/79))
+
+### 🩹 Fixes
+
+- **verify:** Load the api release the tests load ([#69](https://github.com/AntelopeJS/file-storage-local/pull/69))
+- **verify:** Cover the files each feature's journeys exercise ([#72](https://github.com/AntelopeJS/file-storage-local/pull/72))
+
+### 📦 Build
+
+- **deps:** Bump @antelopejs packages to the 2026-11-06 releases ([#68](https://github.com/AntelopeJS/file-storage-local/pull/68))
+- **test:** Commit the module lock of the test project ([#70](https://github.com/AntelopeJS/file-storage-local/pull/70))
+- **deps:** Bump @antelopejs/tooling-configs to 0.3.4 ([#71](https://github.com/AntelopeJS/file-storage-local/pull/71))
+- **deps:** Bump @antelopejs/tooling-configs to 0.4.0 ([#74](https://github.com/AntelopeJS/file-storage-local/pull/74))
+- **deps:** Bump @antelopejs/tooling-configs to 0.5.0 ([#76](https://github.com/AntelopeJS/file-storage-local/pull/76))
+- **deps:** Bump @antelopejs/tooling-configs to 0.5.1 ([#78](https://github.com/AntelopeJS/file-storage-local/pull/78))
+
+### 🏡 Chore
+
+- **verify:** Remove seeded runs from the verification skill ([#65](https://github.com/AntelopeJS/file-storage-local/pull/65))
+- **ci:** Remove the weekly mutation caller ([#66](https://github.com/AntelopeJS/file-storage-local/pull/66))
+
+### 🤖 CI
+
+- Call ci-node.yml@v1 ([#67](https://github.com/AntelopeJS/file-storage-local/pull/67))
+- **windows:** Set up pnpm with corepack instead of pnpm/action-setup ([#73](https://github.com/AntelopeJS/file-storage-local/pull/73))
+- **modules-update:** Call the shared modules-update workflow ([#75](https://github.com/AntelopeJS/file-storage-local/pull/75))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli ([@Upd4ting](http://github.com/Upd4ting))
+
 ## v0.2.0
 
 [compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.1.13...v0.2.0)
