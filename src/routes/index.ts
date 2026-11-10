@@ -148,17 +148,6 @@ export class FileStorageController extends Controller("file-storage") {
       return;
     }
 
-    const exists = await tokenManager.fileExists(
-      decodedResourceKey,
-      metadata.path,
-    );
-    if (!exists) {
-      context.response.setStatus(404);
-      stream.write(JSON.stringify({ error: "File not found" }));
-      stream.end();
-      return;
-    }
-
     const config = getStorageConfig(storage);
     const visibility = metadata.visibility ?? config.defaultVisibility;
     if (visibility === "private") {

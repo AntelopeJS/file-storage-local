@@ -179,11 +179,6 @@ export namespace internal {
     if (!metadata) {
       throw new FileNotFoundError(resourceKey);
     }
-
-    const exists = await tokenManager.fileExists(resourceKey, metadata.path);
-    if (!exists) {
-      throw new FileNotFoundError(resourceKey);
-    }
     const filesUrl = buildFilesUrl(config.baseUrl, resourceKey, storage);
     const visibility = metadata.visibility ?? config.defaultVisibility;
     if (visibility === "public") {
@@ -209,11 +204,7 @@ export namespace internal {
   ): Promise<ReadFileResponse> => {
     const tokenManager = getTokenManager(storage);
     const metadata = await tokenManager.getFileMetadata(resourceKey);
-    if (
-      !metadata ||
-      !(await tokenManager.fileExists(resourceKey, metadata.path))
-    )
-      throw new FileNotFoundError(resourceKey);
+    if (!metadata) throw new FileNotFoundError(resourceKey);
     return {
       body: createReadStream(
         tokenManager.getFilePath(resourceKey, metadata.path),
@@ -237,12 +228,9 @@ export namespace internal {
     resourceKey: string,
     storage?: string,
   ): Promise<boolean> => {
-    const tokenManager = getTokenManager(storage);
-    const metadata = await tokenManager.getFileMetadata(resourceKey);
-    if (!metadata) {
-      return false;
-    }
-    return tokenManager.fileExists(resourceKey, metadata.path);
+    const metadata =
+      await getTokenManager(storage).getFileMetadata(resourceKey);
+    return metadata !== null;
   };
 
   export const getFileMetadata = async (
