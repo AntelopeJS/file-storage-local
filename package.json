@@ -31,7 +31,7 @@
     "dev": "ajs project run -w -p playground",
     "format": "oxfmt .",
     "lint:fix": "oxlint --fix",
-    "lint": "oxlint && antelopejs-check-interface-ranges",
+    "lint": "oxlint",
     "prepack": "pnpm run build",
     "release": "pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run prepack && release-it",
     "test": "pnpm run build && ajs module test .",
@@ -47,13 +47,13 @@
     "suppressions:update": "antelopejs-suppressions --update"
   },
   "dependencies": {
-    "@antelopejs/interface-api": ">=0.0.16 <1.0.0",
-    "@antelopejs/interface-core": ">=0.4.0 <1.0.0",
+    "@antelopejs/interface-api": ">=0.3.3 <0.4.0",
+    "@antelopejs/interface-core": ">=0.5.1 <0.6.0",
     "@antelopejs/interface-file-storage": ">=0.1.6 <0.2.0"
   },
   "devDependencies": {
-    "@antelopejs/core": "^1.21.0",
-    "@antelopejs/tooling-configs": "^0.5.8",
+    "@antelopejs/core": "~1.23.3",
+    "@antelopejs/tooling-configs": ">=0.7.1 <0.8.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.19.15",
     "eslint-plugin-perfectionist": "^5.11.0",

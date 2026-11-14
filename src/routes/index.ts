@@ -13,6 +13,7 @@ import {
   HTTPResult,
   Parameter,
   Put,
+  type QueryValue,
   type RequestContext,
   StreamBody,
   WriteStream,
@@ -25,6 +26,10 @@ import {
   resolveContentType,
   resolveDownloadFilename,
 } from "./download-headers";
+
+const BareStorageError = {
+  error: 'The "storage" query parameter needs a storage name.',
+};
 
 /**
  * File Storage HTTP Controller
@@ -50,9 +55,10 @@ export class FileStorageController extends Controller("file-storage") {
     @Parameter("token", "param") token: string,
     @Parameter("content-type", "header") contentType: string | undefined,
     @Parameter("content-length", "header") contentLength: string | undefined,
-    @Parameter("storage", "query") storage: string | undefined,
+    @Parameter("storage", "query") storage: QueryValue,
     @Context() context: RequestContext,
   ): Promise<HTTPResult> {
+    if (storage === true) return new HTTPResult(400, BareStorageError);
     const tokenManager = getTokenManager(storage);
 
     const uploadToken = await tokenManager.getUploadToken(token);
@@ -123,12 +129,18 @@ export class FileStorageController extends Controller("file-storage") {
    */
   @Get("/files/:resourceKey")
   async handleDownload(
-    @Parameter("token", "query") token: string | undefined,
+    @Parameter("token", "query") token: QueryValue,
     @Parameter("resourceKey", "param") resourceKey: string,
-    @Parameter("storage", "query") storage: string | undefined,
+    @Parameter("storage", "query") storage: QueryValue,
     @WriteStream() stream: PassThrough,
     @Context() context: RequestContext,
   ): Promise<void> {
+    if (storage === true) {
+      context.response.setStatus(400);
+      stream.write(JSON.stringify(BareStorageError));
+      stream.end();
+      return;
+    }
     const tokenManager = getTokenManager(storage);
 
     if (!resourceKey) {
@@ -151,7 +163,7 @@ export class FileStorageController extends Controller("file-storage") {
     const config = getStorageConfig(storage);
     const visibility = metadata.visibility ?? config.defaultVisibility;
     if (visibility === "private") {
-      if (!token) {
+      if (token === undefined || token === true) {
         context.response.setStatus(403);
         stream.write(
           JSON.stringify({
