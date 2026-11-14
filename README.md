@@ -127,8 +127,8 @@ The client sends the file with `PUT upload.uploadUrl` and the returned `upload.h
 
 | Package                              | Supported         | Tested with |
 | ------------------------------------ | ----------------- | ----------- |
-| `@antelopejs/interface-api`          | `>=0.0.16 <1.0.0` | `0.0.16`    |
-| `@antelopejs/interface-core`         | `>=0.4.0 <1.0.0`  | `0.4.0`     |
+| `@antelopejs/interface-api`          | `>=0.0.16 <0.1.0` | `0.0.16`    |
+| `@antelopejs/interface-core`         | `>=0.4.0 <0.5.0`  | `0.4.0`     |
 | `@antelopejs/interface-file-storage` | `>=0.1.6 <0.2.0`  | `0.1.6`     |
 
 <!-- antelopejs-docs-compat:end -->
