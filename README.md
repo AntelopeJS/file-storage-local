@@ -125,11 +125,11 @@ The client sends the file with `PUT upload.uploadUrl` and the returned `upload.h
 
 <!-- antelopejs-docs-compat:start -->
 
-| Package                              | Supported         | Tested with |
-| ------------------------------------ | ----------------- | ----------- |
-| `@antelopejs/interface-api`          | `>=0.0.16 <0.1.0` | `0.0.16`    |
-| `@antelopejs/interface-core`         | `>=0.4.0 <0.5.0`  | `0.4.0`     |
-| `@antelopejs/interface-file-storage` | `>=0.1.6 <0.2.0`  | `0.1.6`     |
+| Package                              | Supported        | Tested with |
+| ------------------------------------ | ---------------- | ----------- |
+| `@antelopejs/interface-api`          | `>=0.3.3 <0.4.0` | `0.3.3`     |
+| `@antelopejs/interface-core`         | `>=0.5.1 <0.6.0` | `0.5.1`     |
+| `@antelopejs/interface-file-storage` | `>=0.1.6 <0.2.0` | `0.1.8`     |
 
 <!-- antelopejs-docs-compat:end -->
 
