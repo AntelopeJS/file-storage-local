@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.2.2
+
+[compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.2.1...v0.2.2)
+
+### 📖 Documentation
+
+- **readme:** Adopt the AntelopeJS framework README style ([#80](https://github.com/AntelopeJS/file-storage-local/pull/80))
+- **readme:** Select the 0.2 release in the config example ([#82](https://github.com/AntelopeJS/file-storage-local/pull/82))
+
+### 📦 Build
+
+- **deps:** Move every @antelopejs range to its newest minor on tooling-configs 0.7 ([#83](https://github.com/AntelopeJS/file-storage-local/pull/83))
+- Move to @antelopejs/tooling-configs 0.8 and the three-tier CI ([#85](https://github.com/AntelopeJS/file-storage-local/pull/85))
+
+### 🤖 CI
+
+- **windows:** Run the shared CI on Windows beside Linux ([#81](https://github.com/AntelopeJS/file-storage-local/pull/81))
+- Remove the nightly modules-update workflow ([#84](https://github.com/AntelopeJS/file-storage-local/pull/84))
+
+#### ⚠️ Breaking Changes
+
+- **deps:** Move every @antelopejs range to its newest minor on tooling-configs 0.7 ([#83](https://github.com/AntelopeJS/file-storage-local/pull/83))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli
+
 ## v0.2.1
 
 [compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.2.0...v0.2.1)
