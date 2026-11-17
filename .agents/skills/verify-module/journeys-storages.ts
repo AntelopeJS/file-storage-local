@@ -1,6 +1,7 @@
 import type { Journey } from "@antelopejs/tooling-configs/verify";
 
-import { answered, call, diskText, filesUnder, pick, request, same, slotOf, startStack, store, thrown } from "./session.ts";
+import { isString } from "./json.ts";
+import { answered, bodyJson, call, diskText, filesUnder, pick, put, request, same, slotOf, startStack, store, thrown } from "./session.ts";
 
 const NOTE = { filename: "note.txt", size: 4, mimetype: "text/plain" };
 
@@ -34,4 +35,37 @@ const namedStorage: Journey = {
   },
 };
 
-export const storageJourneys = { "named-storage": namedStorage };
+const BARE_STORAGE_ERROR = 'The "storage" query parameter needs a storage name.';
+
+const bareStorage: Journey = {
+  title: "a request with a bare ?storage and no value is refused with 400 on the upload and the download route, and the same request without it still works",
+  entryPoint: "`PUT /file-storage/upload/:token?storage` and `GET /file-storage/files/:resourceKey?storage`, sent with curl",
+  async run(context) {
+    const stack = await startStack(context);
+    const created = await call(stack, "CreateUploadUrl", "CreateUploadUrl", [NOTE]);
+    const slot = slotOf(created);
+    context.expect(created.folder, [answered(created)], { critical: true });
+    if (slot === undefined) return;
+    const bareUpload = await request(context, "PUT with a bare ?storage", "PUT", `${slot.uploadUrl.split("?")[0]}?storage`, { headers: slot.headers, body: "note" });
+    context.expect(bareUpload.folder, [
+      same("a bare ?storage on the upload is refused", bareUpload.status, "400"),
+      same("the reason asks for a storage name", pick(bodyJson(bareUpload), "error"), BARE_STORAGE_ERROR),
+      same("nothing was stored", filesUnder(`${stack.root}/files`), []),
+    ]);
+    const stored = await put(context, "PUT the same slot without the flag", slot, "note");
+    context.expect(stored.folder, [same("the refused slot still accepts the upload", stored.status, "200")]);
+    const read = await call(stack, "CreateReadUrl", "CreateReadUrl", [slot.resourceKey]);
+    const url = pick(read.value, "url");
+    context.expect(read.folder, [answered(read)], { critical: true });
+    if (!isString(url)) return;
+    const bareRead = await request(context, "GET with a bare ?storage", "GET", `${url}&storage`);
+    context.expect(bareRead.folder, [
+      same("a bare ?storage on the download is refused", bareRead.status, "400"),
+      same("the reason asks for a storage name", pick(bodyJson(bareRead), "error"), BARE_STORAGE_ERROR),
+    ]);
+    const served = await request(context, "GET without the flag", "GET", url);
+    context.expect(served.folder, [same("the same URL without the flag serves the bytes", [served.status, served.body], ["200", "note"])]);
+  },
+};
+
+export const storageJourneys = { "named-storage": namedStorage, "bare-storage": bareStorage };
