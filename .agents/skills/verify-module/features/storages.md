@@ -10,6 +10,7 @@ docs:
   - README.md
 journeys:
   - named-storage
+  - bare-storage
 ---
 
 # Storages
@@ -19,6 +20,7 @@ The config holds a default storage and optional named storages that a call selec
 ## Sub-features
 
 - `named-storage`: a call with a storage id signs its URL for that storage, keeps its files in that storage's folder only, and does not see the default storage's files; an unknown id is refused naming it.
+- `bare-storage`: `?storage` with no value on the upload PUT and the download GET answers 400 asking for a storage name, stores nothing, and leaves the same slot and URL working without it.
 
 ## How to get to it (user POV)
 
