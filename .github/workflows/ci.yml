@@ -26,8 +26,6 @@ jobs:
       renovate-sync: false
       test-job: true
       affected-tests: true
-    secrets:
-      NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
 
   renovate-sync:
     if: >-
