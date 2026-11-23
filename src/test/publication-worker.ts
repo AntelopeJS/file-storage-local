@@ -88,5 +88,8 @@ async function run(request: WorkerRequest): Promise<void> {
 }
 
 if (process.argv[2] === "publication-worker") {
-  void run(parseWorkerRequest(process.argv[3]!));
+  const payload = process.argv[3];
+  if (payload === undefined)
+    throw new Error("publication-worker needs a request");
+  void run(parseWorkerRequest(payload));
 }
