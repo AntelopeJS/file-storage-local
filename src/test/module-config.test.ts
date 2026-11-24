@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 
 import {
-  clearModuleState,
+  getConfig,
   getStorageConfig,
+  getTokenManager,
   setModuleState,
   type Config,
   type StorageConfig,
@@ -24,7 +25,15 @@ function configWith(storages: ReadonlyMap<string, StorageConfig>): Config {
 }
 
 describe("getStorageConfig", () => {
-  afterEach(() => clearModuleState());
+  let originalConfig: Config;
+  let originalManager: TokenManager;
+
+  beforeEach(() => {
+    originalConfig = getConfig();
+    originalManager = getTokenManager();
+  });
+
+  afterEach(() => setModuleState(originalConfig, originalManager));
 
   it("answers not found for an inherited object key such as 'constructor'", () => {
     setModuleState(configWith(new Map()), new TokenManager("unused"));
