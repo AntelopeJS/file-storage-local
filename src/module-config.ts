@@ -18,7 +18,7 @@ export interface StorageConfig {
 }
 
 export interface Config extends StorageConfig {
-  storages?: Record<string, StorageConfig>;
+  storages?: ReadonlyMap<string, StorageConfig>;
 }
 
 let moduleConfig: Config | null = null;
@@ -55,7 +55,7 @@ export function getConfig(): Config {
 export function getStorageConfig(storage?: string): StorageConfig {
   const config = getConfig();
   if (!storage) return config;
-  const named = config.storages?.[storage];
+  const named = config.storages?.get(storage);
   if (!named)
     throw new Error(`Storage '${storage}' not found in configuration`);
   return named;

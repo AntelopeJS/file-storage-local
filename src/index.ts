@@ -65,7 +65,7 @@ function applyDefaults(config: StorageInput): StorageConfig {
 function resolveConfig(config: ConstructConfig): Config {
   const resolved: Config = applyDefaults(config);
   if (config.storages) {
-    resolved.storages = Object.fromEntries(
+    resolved.storages = new Map(
       Object.entries(config.storages).map(([storage, value]) => [
         storage,
         applyDefaults(value),
@@ -94,9 +94,10 @@ interface StorageEntry {
 }
 
 function storageEntries(config: Config): StorageEntry[] {
-  const named = Object.entries(config.storages ?? {}).map(
-    ([storage, value]) => ({ storage, config: value }),
-  );
+  const named = [...(config.storages ?? [])].map(([storage, value]) => ({
+    storage,
+    config: value,
+  }));
   return [{ config }, ...named];
 }
 
@@ -141,7 +142,7 @@ function startCleanupInterval(entry: StorageEntry): void {
 
 export async function construct(config: ConstructConfig): Promise<void> {
   const resolved = resolveConfig(config);
-  if (resolved.storages?.default)
+  if (resolved.storages?.has("default"))
     throw new Error("Named storage 'default' is reserved");
   const manager = new TokenManager(resolved.storagePath);
   setModuleState(resolved, manager);
