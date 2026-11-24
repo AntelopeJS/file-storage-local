@@ -15,7 +15,7 @@ jobs:
   refresh:
     permissions:
       contents: read
-    uses: AntelopeJS/.github/.github/workflows/module-locks-refresh.yml@v2
+    uses: AntelopeJS/.github/.github/workflows/module-locks-refresh.yml@8c79f96b4f7f374ebb9346cfd0b8a182ee92fb9b # v2
     with:
       projects: ""
       commands: |
