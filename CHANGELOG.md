@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.2.3
+
+[compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.2.2...v0.2.3)
+
+### 🩹 Fixes
+
+- Hold named storages in a ReadonlyMap built once ([#98](https://github.com/AntelopeJS/file-storage-local/pull/98))
+
+### 📦 Build
+
+- **deps:** Update the AntelopeJS module locks ([#94](https://github.com/AntelopeJS/file-storage-local/pull/94))
+
+### 🏡 Chore
+
+- Promote next to main ([#89](https://github.com/AntelopeJS/file-storage-local/pull/89))
+- Adopt tooling-configs 0.10 ([#97](https://github.com/AntelopeJS/file-storage-local/pull/97))
+- **deps:** Update dependency @antelopejs/api to v1.7.8 ([#100](https://github.com/AntelopeJS/file-storage-local/pull/100))
+
+### 🤖 CI
+
+- Roll out the trunk CI and merge queue ([#90](https://github.com/AntelopeJS/file-storage-local/pull/90))
+- Re-sync the AntelopeJS pack for the release app ([#92](https://github.com/AntelopeJS/file-storage-local/pull/92))
+- Adopt the shared module lock refresh and checks ([#93](https://github.com/AntelopeJS/file-storage-local/pull/93))
+- Stop forwarding the retired RELEASE_GITHUB_TOKEN ([#95](https://github.com/AntelopeJS/file-storage-local/pull/95))
+
+### ❤️ Contributors
+
+- Antony Rizzitelli
+
 ## v0.2.2
 
 [compare changes](https://github.com/AntelopeJS/file-storage-local/compare/v0.2.1...v0.2.2)
