@@ -2,11 +2,6 @@ import { promises as fs } from "node:fs";
 import type { PassThrough } from "node:stream";
 import { Logging } from "@antelopejs/interface-core/logging";
 import {
-  FileConflictError,
-  FileNotFoundError,
-  UploadValidationError,
-} from "@antelopejs/interface-file-storage";
-import {
   Context,
   Controller,
   Get,
@@ -26,6 +21,11 @@ import {
   resolveContentType,
   resolveDownloadFilename,
 } from "./download-headers";
+
+/** Matches an error by its `name`, which survives a second copy of the interface package. */
+function hasErrorName(error: unknown, name: string): error is Error {
+  return error instanceof Error && error.name === name;
+}
 
 const BareStorageError = {
   error: 'The "storage" query parameter needs a storage name.',
@@ -98,14 +98,14 @@ export class FileStorageController extends Controller("file-storage") {
         resourceKey: uploadToken.resourceKey,
       });
     } catch (error: unknown) {
-      if (error instanceof UploadValidationError)
+      if (hasErrorName(error, "UploadValidationError"))
         return new HTTPResult(403, {
           error: "Body size mismatch",
           expected: expectedSize,
         });
-      if (error instanceof FileConflictError)
+      if (hasErrorName(error, "FileConflictError"))
         return new HTTPResult(409, { error: error.message });
-      if (error instanceof FileNotFoundError)
+      if (hasErrorName(error, "FileNotFoundError"))
         return new HTTPResult(403, { error: "Token expired" });
       if (context.rawRequest.errored)
         return new HTTPResult(400, { error: "Upload aborted" });

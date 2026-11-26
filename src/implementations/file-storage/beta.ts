@@ -88,7 +88,10 @@ function validateUploadRequest(
 function toFileMetadata(metadata: StoredMetadataSnapshot): FileMetadata {
   const fileMetadata: FileMetadata = {
     resourceKey: metadata.resourceKey,
-    filename: metadata.metadata?.[FilenameMetadataKey] ?? "",
+    filename:
+      new Map(Object.entries(metadata.metadata ?? {})).get(
+        FilenameMetadataKey,
+      ) ?? "",
     size: metadata.size,
     mimetype: metadata.mimetype,
     lastModified: metadata.lastModified,
